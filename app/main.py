@@ -1169,11 +1169,17 @@ async def send_email(request: SendEmailRequest, user=Depends(require_user)):
 
 @app.get("/api/health")
 async def health():
+    has_sa_file = bool(settings.google_application_credentials)
+    has_sa_json = bool(settings.google_service_account_json)
+    if has_sa_file or has_sa_json:
+        auth_method = "service_account"
+    elif settings.google_maps_api_key:
+        auth_method = "api_key"
+    else:
+        auth_method = "none"
     return {
         "status": "ok",
         "credentials_configured": is_google_configured(),
-        "auth_method": "service_account" if settings.google_application_credentials else (
-            "api_key" if settings.google_maps_api_key else "none"
-        ),
-        "project": "weebo-409921" if settings.google_application_credentials else None,
+        "auth_method": auth_method,
+        "project": settings.google_cloud_project if auth_method == "service_account" else None,
     }

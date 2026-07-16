@@ -4,7 +4,9 @@ Find local businesses on Google Maps, enrich them, build site concepts in Figma 
 
 ## Live app
 
-Hosted on Railway (public GitHub: [IS-studio-hub/Chappie](https://github.com/IS-studio-hub/Chappie)).
+**Production:** [https://chappie-production.up.railway.app](https://chappie-production.up.railway.app)
+
+Source: [IS-studio-hub/Chappie](https://github.com/IS-studio-hub/Chappie)
 
 ## What it does
 
