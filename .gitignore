@@ -1,0 +1,14 @@
+venv/
+.env
+.env.local
+.gmail_token.json
+weebo-*.json
+*-credentials.json
+__pycache__/
+*.pyc
+.pytest_cache/
+.DS_Store
+*.egg-info/
+dist/
+build/
+.railway/

@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chappie — Find local businesses without websites</title>
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="/favicon.ico" sizes="any">
+  <link rel="apple-touch-icon" href="/static/favicon.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/css/intro.css">
+</head>
+<body>
+  <header class="intro-nav">
+    <a class="brand" href="/">
+      <span class="brand-mark">C</span>
+      <span class="brand-name">Chappie</span>
+    </a>
+    <nav class="nav-links">
+      <a href="#tutorials">Tutorials</a>
+      <a href="#plans">Plans</a>
+      <button type="button" class="link-btn" id="navSignIn" onclick="openAuth('signin')">Sign in</button>
+      <a class="btn-nav" id="navCta" href="#" onclick="return handlePrimaryCta(event)">Get started</a>
+    </nav>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="hero-copy">
+        <p class="eyebrow">IS Studio · Local outreach</p>
+        <h1 class="hero-brand">Chappie</h1>
+        <p class="hero-tag">Find local businesses without websites — then reach out with a site offer.</p>
+        <div class="hero-actions">
+          <a class="btn-primary" href="#" onclick="return handlePrimaryCta(event)">Start free search</a>
+          <a class="btn-ghost" href="#tutorials">Watch tutorials</a>
+        </div>
+      </div>
+      <div class="hero-glow" aria-hidden="true"></div>
+    </section>
+
+    <section class="tutorials" id="tutorials">
+      <div class="section-head">
+        <h2>Learn Chappie in four short videos</h2>
+        <p>Replace these placeholders with your tutorial embeds when ready.</p>
+      </div>
+      <div class="video-grid">
+        <article class="video-card">
+          <div class="video-frame" data-video-slot="1">
+            <!-- Drop a YouTube/Vimeo iframe here -->
+            <div class="video-placeholder">
+              <span>Video 1</span>
+              <small>Getting started</small>
+            </div>
+          </div>
+          <h3>Getting started</h3>
+          <p>Create your account and run your first free search.</p>
+        </article>
+        <article class="video-card">
+          <div class="video-frame" data-video-slot="2">
+            <div class="video-placeholder">
+              <span>Video 2</span>
+              <small>Reading results</small>
+            </div>
+          </div>
+          <h3>Reading results</h3>
+          <p>Understand business cards, emails, and social profiles.</p>
+        </article>
+        <article class="video-card">
+          <div class="video-frame" data-video-slot="3">
+            <div class="video-placeholder">
+              <span>Video 3</span>
+              <small>Outreach &amp; Gmail</small>
+            </div>
+          </div>
+          <h3>Outreach &amp; Gmail</h3>
+          <p>Connect Gmail and send personalized pitches.</p>
+        </article>
+        <article class="video-card">
+          <div class="video-frame" data-video-slot="4">
+            <div class="video-placeholder">
+              <span>Video 4</span>
+              <small>Plans &amp; upgrades</small>
+            </div>
+          </div>
+          <h3>Plans &amp; upgrades</h3>
+          <p>How monthly plans and upgrades work.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="plans" id="plans">
+      <div class="section-head">
+        <h2>Plans that match your outreach volume</h2>
+        <p>Pick a monthly plan that matches how many searches you need.</p>
+      </div>
+      <div class="plan-grid">
+        <article class="plan-card">
+          <h3>Free</h3>
+          <p class="price">$0 <span>CAD</span></p>
+          <ul>
+            <li>1 search trial</li>
+            <li>Up to 10 businesses</li>
+          </ul>
+          <button type="button" class="btn-plan" onclick="openAuth('signup')">Try free</button>
+        </article>
+        <article class="plan-card">
+          <h3>Small Biz</h3>
+          <p class="price">$29 <span>CAD / mo</span></p>
+          <ul>
+            <li>10 searches per month</li>
+            <li>Up to 30 businesses per search</li>
+          </ul>
+          <button type="button" class="btn-plan" onclick="startPlan('small')">Choose Small</button>
+        </article>
+        <article class="plan-card featured">
+          <h3>Mid Biz</h3>
+          <p class="price">$49 <span>CAD / mo</span></p>
+          <ul>
+            <li>10 searches per month</li>
+            <li>Up to 50 businesses per search</li>
+          </ul>
+          <button type="button" class="btn-plan" onclick="startPlan('mid')">Choose Mid</button>
+        </article>
+        <article class="plan-card">
+          <h3>Large Biz</h3>
+          <p class="price">$169 <span>CAD / mo</span></p>
+          <ul>
+            <li>30 searches per month</li>
+            <li>Up to 50 businesses per search</li>
+          </ul>
+          <button type="button" class="btn-plan" onclick="startPlan('large')">Choose Large</button>
+        </article>
+      </div>
+    </section>
+  </main>
+
+  <footer class="intro-footer">
+    <p>Built by <a href="https://is-studio-hub.github.io/isstudio/" target="_blank" rel="noopener">IS Studio</a> · <a href="mailto:hello@isexperience.house">hello@isexperience.house</a></p>
+  </footer>
+
+  <div class="modal-backdrop" id="authModal" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="authTitle">
+      <button type="button" class="modal-close" onclick="closeAuth()" aria-label="Close">×</button>
+      <h2 id="authTitle">Sign in</h2>
+      <p class="modal-sub" id="authSub">Welcome back to Chappie.</p>
+      <form id="authForm" onsubmit="return submitAuth(event)">
+        <div class="field" id="nameField" hidden>
+          <label for="authName">Name</label>
+          <input id="authName" type="text" autocomplete="name" placeholder="Your name">
+        </div>
+        <div class="field">
+          <label for="authEmail">Email</label>
+          <input id="authEmail" type="email" required autocomplete="email" placeholder="you@business.com">
+        </div>
+        <div class="field">
+          <label for="authPassword">Password</label>
+          <div class="password-wrap">
+            <input id="authPassword" type="password" required minlength="8" autocomplete="current-password" placeholder="At least 8 characters">
+            <button type="button" class="password-toggle" id="passwordToggle" onclick="togglePasswordVisibility()" aria-label="Show password" title="Show password" data-visible="false">
+              <!-- Default: open eye, password hidden -->
+              <svg class="eye-icon eye-open is-visible" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                <circle cx="12" cy="12" r="3"/>
+              </svg>
+              <!-- After click: eye with line, password visible -->
+              <svg class="eye-icon eye-slash" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
+                <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
+                <path d="M14.12 14.12a3 3 0 1 1-4.24-4.24"/>
+                <line x1="1" y1="1" x2="23" y2="23"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+        <p class="form-error" id="authError" hidden></p>
+        <button type="submit" class="btn-primary full" id="authSubmit">Sign in</button>
+      </form>
+      <div id="verifySent" hidden>
+        <p class="modal-sub" id="verifySentText">We sent a verification link to your email. Click <strong>Verify email</strong> in that message to create your account.</p>
+        <button type="button" class="btn-primary full" onclick="closeAuth()">Got it</button>
+      </div>
+      <p class="modal-switch" id="authSwitchRow">
+        <span id="authSwitchText">No account?</span>
+        <button type="button" class="link-btn" id="authSwitchBtn" onclick="toggleAuthMode()">Sign up</button>
+      </p>
+    </div>
+  </div>
+
+  <script src="/static/js/intro.js"></script>
+</body>
+</html>

@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pipeline — Chappie</title>
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="/favicon.ico" sizes="any">
+  <link rel="apple-touch-icon" href="/static/favicon.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/css/intro.css">
+  <link rel="stylesheet" href="/static/css/account.css">
+  <link rel="stylesheet" href="/static/css/pipeline.css">
+</head>
+<body>
+  <header class="intro-nav">
+    <a class="brand" href="/">
+      <span class="brand-mark">C</span>
+      <span class="brand-name">Chappie</span>
+    </a>
+    <nav class="nav-links">
+      <a href="/app">Search app</a>
+      <a href="/favorites">Favorites</a>
+      <a href="/account">Account</a>
+      <button type="button" class="link-btn" onclick="signOut()">Sign out</button>
+    </nav>
+  </header>
+
+  <main class="account-main pipeline-main">
+    <div class="account-head">
+      <div>
+        <p class="eyebrow">Outreach</p>
+        <h1>Pipeline</h1>
+        <p class="muted">Track sent emails through open, reply, booked, and closed.</p>
+      </div>
+      <a class="btn-primary" href="/app">Find more leads</a>
+    </div>
+
+    <div class="pipeline-counts" id="pipelineCounts"></div>
+
+    <section class="panel learning-panel" id="learningPanel">
+      <h2>Learning loop</h2>
+      <p class="muted" id="learningMessage">Loading conversion insights…</p>
+      <div class="learning-winners" id="learningWinners"></div>
+    </section>
+
+    <div class="pipeline-filters">
+      <button type="button" class="pipe-filter active" data-status="" onclick="filterPipeline('')">All</button>
+      <button type="button" class="pipe-filter" data-status="sent" onclick="filterPipeline('sent')">Sent</button>
+      <button type="button" class="pipe-filter" data-status="opened" onclick="filterPipeline('opened')">Opened</button>
+      <button type="button" class="pipe-filter" data-status="replied" onclick="filterPipeline('replied')">Replied</button>
+      <button type="button" class="pipe-filter" data-status="booked" onclick="filterPipeline('booked')">Booked</button>
+      <button type="button" class="pipe-filter" data-status="closed" onclick="filterPipeline('closed')">Closed</button>
+    </div>
+
+    <section class="panel">
+      <div class="table-wrap">
+        <table class="billing-table pipeline-table">
+          <thead>
+            <tr>
+              <th>Business</th>
+              <th>Recipients</th>
+              <th>Subject</th>
+              <th>Status</th>
+              <th>Opens</th>
+              <th>Updated</th>
+              <th>Update</th>
+            </tr>
+          </thead>
+          <tbody id="pipelineBody">
+            <tr><td colspan="7" class="muted">Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <div class="toast" id="toast" hidden></div>
+  <script src="/static/js/pipeline.js"></script>
+</body>
+</html>

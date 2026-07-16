@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Favorites — Chappie</title>
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="/favicon.ico" sizes="any">
+  <link rel="apple-touch-icon" href="/static/favicon.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/css/intro.css">
+  <link rel="stylesheet" href="/static/css/account.css">
+  <link rel="stylesheet" href="/static/css/pipeline.css">
+  <link rel="stylesheet" href="/static/css/favorites.css">
+</head>
+<body>
+  <header class="intro-nav">
+    <a class="brand" href="/">
+      <span class="brand-mark">C</span>
+      <span class="brand-name">Chappie</span>
+    </a>
+    <nav class="nav-links">
+      <a href="/app">Search app</a>
+      <a href="/pipeline">Pipeline</a>
+      <a href="/favorites">Favorites</a>
+      <a href="/account">Account</a>
+      <button type="button" class="link-btn" onclick="signOut()">Sign out</button>
+    </nav>
+  </header>
+
+  <main class="account-main pipeline-main">
+    <div class="account-head">
+      <div>
+        <p class="eyebrow">Saved leads</p>
+        <h1>Favorites</h1>
+        <p class="muted">Businesses you starred from search — reopen them anytime.</p>
+      </div>
+      <a class="btn-primary" href="/app">Find more leads</a>
+    </div>
+
+    <div class="favorites-count" id="favoritesCount">0 saved</div>
+
+    <section class="panel">
+      <div id="favoritesEmpty" class="favorites-empty" hidden>
+        <p class="muted">No favorites yet. Open Search and tap the ★ on a business card to save it here.</p>
+        <a class="btn-primary" href="/app">Go to search</a>
+      </div>
+      <div class="favorites-grid" id="favoritesGrid"></div>
+    </section>
+  </main>
+
+  <div class="toast" id="toast" hidden></div>
+  <script src="/static/js/favorites.js"></script>
+</body>
+</html>

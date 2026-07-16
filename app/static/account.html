@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>My Account — Chappie</title>
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="/favicon.ico" sizes="any">
+  <link rel="apple-touch-icon" href="/static/favicon.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/css/intro.css">
+  <link rel="stylesheet" href="/static/css/account.css">
+</head>
+<body>
+  <header class="intro-nav">
+    <a class="brand" href="/">
+      <span class="brand-mark">C</span>
+      <span class="brand-name">Chappie</span>
+    </a>
+    <nav class="nav-links">
+      <a href="/app">Search app</a>
+      <a href="/favorites">Favorites</a>
+      <a href="/pipeline">Pipeline</a>
+      <button type="button" class="link-btn" onclick="signOut()">Sign out</button>
+    </nav>
+  </header>
+
+  <main class="account-main">
+    <div class="account-head">
+      <div>
+        <p class="eyebrow">My account</p>
+        <h1 id="accountName">Account</h1>
+        <p class="muted" id="accountEmail"></p>
+      </div>
+      <a class="btn-primary" href="/app">Open search</a>
+    </div>
+
+    <section class="account-grid">
+      <article class="panel">
+        <h2>Current plan</h2>
+        <p class="plan-badge" id="planBadge">—</p>
+        <dl class="stats">
+          <div><dt>Credit balance</dt><dd id="creditBalance">—</dd></div>
+          <div><dt>Searches used</dt><dd id="searchesUsed">—</dd></div>
+          <div><dt>Result limit</dt><dd id="maxResults">—</dd></div>
+          <div><dt>Period start</dt><dd id="periodStart">—</dd></div>
+          <div><dt>Period end</dt><dd id="periodEnd">—</dd></div>
+        </dl>
+      </article>
+
+      <article class="panel">
+        <h2>Usage cost</h2>
+        <dl class="stats">
+          <div><dt>Search spend (all time)</dt><dd id="totalSearchSpend">—</dd></div>
+          <div><dt>Payments received</dt><dd id="totalPayments">—</dd></div>
+        </dl>
+        <p class="muted small" id="usageNote"></p>
+      </article>
+    </section>
+
+    <section class="panel" id="upgradePanel">
+      <h2>Upgrade plan</h2>
+      <p class="muted" style="margin-bottom:1rem">Upgrading starts a new billing month immediately and resets your searches from that moment.</p>
+      <div class="upgrade-grid" id="upgradeGrid"></div>
+      <div class="contact-box" id="contactBox" hidden>
+        <h3>Need more than Large Biz?</h3>
+        <p>Contact <strong id="studioName">IS Studio</strong> for a special offer.</p>
+        <p><a id="studioEmail" href="mailto:hello@isexperience.house">hello@isexperience.house</a>
+          · <a id="studioUrl" href="https://is-studio-hub.github.io/isstudio/" target="_blank" rel="noopener">Website</a></p>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Billing reports</h2>
+      <div class="table-wrap">
+        <table class="billing-table">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Type</th>
+              <th>Description</th>
+              <th>Amount (CAD)</th>
+            </tr>
+          </thead>
+          <tbody id="billingBody">
+            <tr><td colspan="4" class="muted">Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <div class="toast" id="toast" hidden></div>
+  <script src="/static/js/account.js"></script>
+</body>
+</html>

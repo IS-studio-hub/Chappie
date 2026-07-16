@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chappie — Business Finder</title>
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="/favicon.ico" sizes="any">
+  <link rel="apple-touch-icon" href="/static/favicon.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+  <div class="app">
+
+    <!-- Top bar -->
+    <header class="topbar">
+      <div class="logo">
+        <a href="/" style="display:flex;align-items:center;gap:0.75rem;color:inherit;text-decoration:none">
+          <div class="logo-icon">🔍</div>
+          <h1><span>Chappie</span> Business Finder</h1>
+        </a>
+      </div>
+      <div class="topbar-right">
+        <div class="api-status" id="planStatus" title="Plan usage">
+          <span id="planLabel">Plan…</span>
+        </div>
+        <a href="/favorites" class="topbar-link" id="favoritesLink">Favorites</a>
+        <a href="/pipeline" class="topbar-link" id="pipelineLink">Pipeline</a>
+        <a href="/account" class="topbar-link" id="accountLink">Account</a>
+        <div class="api-status">
+          <div class="api-dot" id="apiDot"></div>
+          <span id="apiLabel">Checking...</span>
+        </div>
+      </div>
+    </header>
+
+    <div class="main-layout">
+
+      <!-- Sidebar -->
+      <aside class="sidebar">
+        <div class="sidebar-section">
+          <h3>Search Settings</h3>
+
+          <div class="field">
+            <label for="address">Center Address</label>
+            <input type="text" id="address" name="search-center-address" placeholder="e.g. 100 King St W, Toronto, ON" value="" autocomplete="off" autocorrect="off" spellcheck="false" data-lpignore="true" data-1p-ignore>
+          </div>
+
+          <div class="field">
+            <label>Search Radius</label>
+            <div class="radius-control">
+              <input type="range" id="radiusSlider" min="1" max="50" step="0.5" value="10">
+              <span class="radius-value" id="radiusDisplay">10 km</span>
+            </div>
+            <input type="hidden" id="radius" value="10">
+          </div>
+
+          <div class="field">
+            <label for="targetCategories">Target categories <span style="color:var(--text-muted);font-weight:400">(optional)</span></label>
+            <input type="text" id="targetCategories" name="search-target-niches" placeholder="e.g. dentist, salon, cafe, plumber" value="" autocomplete="off" autocorrect="off" spellcheck="false" data-lpignore="true" data-1p-ignore>
+            <p style="font-size:0.78rem;color:var(--text-muted);margin-top:0.35rem">
+              Boosts category fit in lead ranking. Leave blank to prefer typical website-buyer niches.
+            </p>
+          </div>
+
+          <button class="btn btn-primary" id="searchBtn" onclick="startSearch()" style="width:100%;margin-top:0.5rem">
+            <span id="searchBtnText">Start Search</span>
+          </button>
+        </div>
+
+        <!-- Progress -->
+        <div class="progress-panel" id="progressPanel">
+          <div class="progress-header">
+            <div class="spinner"></div>
+            <div class="progress-message" id="progressMessage">Starting...</div>
+          </div>
+          <div class="progress-bar-bg">
+            <div class="progress-bar" id="progressBar"></div>
+          </div>
+          <div class="progress-pct" id="progressPct">0%</div>
+        </div>
+
+        <div class="sidebar-section">
+          <details class="integrations-dropdown">
+            <summary class="integrations-summary">
+              <span>Integrations</span>
+            </summary>
+            <div class="integrations-body">
+              <div class="field">
+                <label for="figmaToken">Figma API Token</label>
+                <div class="connect-row">
+                  <input type="password" id="figmaToken" placeholder="figd_..." autocomplete="off">
+                  <button class="btn btn-secondary" id="figmaConnectBtn" onclick="connectFigma()">Connect</button>
+                </div>
+              </div>
+              <div class="figma-status" id="figmaStatus">
+                <span class="figma-dot" id="figmaDot"></span>
+                <span id="figmaLabel">Not connected</span>
+              </div>
+              <p style="font-size:0.8rem;color:var(--text-muted);margin-top:0.5rem">
+                Get your token from <a href="https://www.figma.com/developers/api#access-tokens" target="_blank" style="color:var(--accent)">Figma Settings → Personal Access Tokens</a>.
+              </p>
+
+              <div class="field" style="margin-top:1.25rem">
+                <label for="openaiApiKey">OpenAI API Key</label>
+                <div class="connect-row">
+                  <input type="password" id="openaiApiKey" placeholder="sk-..." autocomplete="off">
+                  <button class="btn btn-secondary" id="openaiConnectBtn" onclick="connectOpenAI()">Connect</button>
+                </div>
+              </div>
+              <div class="figma-status" id="openaiStatus">
+                <span class="figma-dot" id="openaiDot"></span>
+                <span id="openaiLabel">Not connected</span>
+              </div>
+              <p style="font-size:0.8rem;color:var(--text-muted);margin-top:0.5rem">
+                When connected, OpenAI fills missing address, phone, email, hours, and social profiles after each search.
+                Get a key from <a href="https://platform.openai.com/api-keys" target="_blank" style="color:var(--accent)">OpenAI API Keys</a>.
+              </p>
+
+              <div class="integrations-divider"></div>
+              <h4 class="integrations-subhead">Gmail</h4>
+              <div id="gmailOAuthSetup" class="gmail-oauth-setup" style="display:none">
+                <strong>One-time Google setup</strong>
+                <ol>
+                  <li>Open <a id="gmailConsoleLink" href="#" target="_blank">Google Cloud Credentials</a></li>
+                  <li>Click your OAuth client (Web application)</li>
+                  <li>Add this <strong>Authorized redirect URI</strong>:</li>
+                </ol>
+                <code id="gmailRedirectUri"></code>
+                <button class="btn btn-secondary gmail-copy-btn" onclick="copyGmailRedirectUri()">Copy redirect URI</button>
+              </div>
+              <button class="btn btn-primary" style="width:100%" onclick="connectGmailOAuth()">
+                Connect with Google
+              </button>
+              <p class="gmail-hint">
+                Connect the Gmail account you want to send outreach from. Each user connects their own Gmail.
+              </p>
+              <div class="figma-status" id="gmailStatus">
+                <span class="figma-dot" id="gmailDot"></span>
+                <span id="gmailLabel">Not connected</span>
+              </div>
+              <details style="margin-top:0.75rem;font-size:0.85rem">
+                <summary style="cursor:pointer;color:var(--text-muted)">App Password (usually doesn’t work on Workspace)</summary>
+                <div class="field" style="margin-top:0.5rem">
+                  <label for="gmailEmail">Send from</label>
+                  <input type="email" id="gmailEmail" value="" placeholder="you@gmail.com">
+                </div>
+                <div class="field">
+                  <label for="gmailAppPassword">App Password</label>
+                  <div class="connect-row">
+                    <input type="password" id="gmailAppPassword" placeholder="16-char app password" autocomplete="off">
+                    <button class="btn btn-secondary" id="gmailConnectBtn" onclick="connectGmail()">Connect</button>
+                  </div>
+                </div>
+              </details>
+            </div>
+          </details>
+        </div>
+
+        <div class="sidebar-section">
+          <details class="integrations-dropdown your-business-dropdown">
+            <summary class="integrations-summary">
+              <span>Your Business</span>
+            </summary>
+            <div class="integrations-body">
+              <div class="field">
+                <label for="senderBusinessName">Your Business Name</label>
+                <p style="font-size:0.8rem;color:var(--text-muted);margin:0.25rem 0 0.5rem">
+                  Shown as your name in outreach emails when you click Send Email.
+                </p>
+                <input type="text" id="senderBusinessName" maxlength="80" placeholder="e.g. IS Studio">
+              </div>
+
+              <div class="field" style="margin-top:1rem">
+                <label for="senderBusinessInfo">Your Business Info</label>
+                <p style="font-size:0.8rem;color:var(--text-muted);margin:0.25rem 0 0.5rem">
+                  Used when you click Send Email to write a personalized pitch. Max 400 characters.
+                </p>
+                <textarea id="senderBusinessInfo" class="business-info-input" rows="4" maxlength="400" placeholder="https://your-website.com&#10;you@email.com&#10;&#10;Short description of what you offer..."></textarea>
+                <div class="char-count"><span id="senderInfoCount">0</span>/400</div>
+              </div>
+
+              <div class="field" style="margin-top:1rem">
+                <label for="figmaPrototypeLink">Figma Prototype Link</label>
+                <textarea id="figmaPrototypeLink" class="figma-prototype-input" rows="3" placeholder="https://www.figma.com/proto/..."></textarea>
+              </div>
+              <p style="font-size:0.8rem;color:var(--text-muted);margin-top:0.25rem">
+                Included in the email only when you click Send Email.
+              </p>
+            </div>
+          </details>
+        </div>
+
+        <div class="sidebar-section">
+          <h3>Export</h3>
+          <div style="display:flex;gap:0.5rem">
+            <button class="btn btn-secondary" style="flex:1" onclick="download('csv')">📥 CSV</button>
+            <button class="btn btn-secondary" style="flex:1" onclick="download('json')">📥 JSON</button>
+          </div>
+          <p style="font-size:0.8rem;color:var(--text-muted);margin-top:0.5rem">
+            Download results after a search completes.
+          </p>
+        </div>
+      </aside>
+
+      <!-- Main content -->
+      <main class="content">
+
+        <!-- Empty state -->
+        <div class="empty-state" id="emptyState">
+          <div class="empty-icon">🏢</div>
+          <h2>Find Businesses Without Websites</h2>
+          <p>Enter an address and radius to discover local businesses on Google Maps that don't have a website — perfect leads for web development services.</p>
+          <div class="empty-steps">
+            <div class="empty-step">
+              <div class="step-num">STEP 1</div>
+              <div class="step-text">Enter a center address and set your search radius</div>
+            </div>
+            <div class="empty-step">
+              <div class="step-num">STEP 2</div>
+              <div class="step-text">Chappie scans Google Maps and filters out businesses with websites</div>
+            </div>
+            <div class="empty-step">
+              <div class="step-num">STEP 3</div>
+              <div class="step-text">Browse results, view details, and download as CSV or JSON</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Results toolbar -->
+        <div class="results-toolbar" id="resultsToolbar">
+          <div class="toolbar-left">
+            <div class="result-count" id="resultCount"><span>0</span> businesses</div>
+            <div class="search-filter">
+              <span class="search-icon">🔍</span>
+              <input type="text" id="filterInput" placeholder="Filter results...">
+            </div>
+          </div>
+          <div class="toolbar-right">
+            <select class="sort-select" id="sortSelect">
+              <option value="quality">Sort: Lead quality</option>
+              <option value="score">Sort: No-website score</option>
+              <option value="name">Sort: Name</option>
+              <option value="rating">Sort: Rating</option>
+              <option value="reviews">Sort: Reviews</option>
+            </select>
+            <div class="view-toggle">
+              <button class="view-btn active" id="viewCards" onclick="setView('cards')">Cards</button>
+              <button class="view-btn" id="viewTable" onclick="setView('table')">Table</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Stats -->
+        <div class="stats-row" id="statsRow"></div>
+
+        <!-- Results + Map -->
+        <div class="results-body" id="resultsBody">
+          <div class="results-panel">
+            <div id="resultsContainer"></div>
+          </div>
+          <div class="map-panel active" id="mapPanel">
+            <div id="map"></div>
+          </div>
+        </div>
+
+      </main>
+    </div>
+  </div>
+
+  <!-- Detail drawer -->
+  <div class="drawer-overlay" id="drawerOverlay" onclick="closeDrawer()"></div>
+  <div class="detail-drawer" id="drawer">
+    <div class="drawer-header">
+      <div id="drawerTitle" style="font-size:1.15rem;font-weight:600"></div>
+      <button class="drawer-close" onclick="closeDrawer()">✕</button>
+    </div>
+    <div class="drawer-body" id="drawerBody"></div>
+  </div>
+
+  <!-- Create Site language modal -->
+  <div class="email-modal-backdrop" id="createSiteModal" hidden>
+    <div class="email-modal create-site-modal" role="dialog" aria-modal="true" aria-labelledby="createSiteModalTitle">
+      <div class="email-modal-header">
+        <div>
+          <h2 id="createSiteModalTitle">Create site</h2>
+          <p class="email-modal-sub" id="createSiteModalSub">Choose the language for the website copy</p>
+        </div>
+        <button type="button" class="drawer-close" onclick="closeCreateSiteModal()" aria-label="Close">✕</button>
+      </div>
+      <div class="email-modal-body">
+        <div class="field email-lang-row">
+          <label for="siteLanguage">Site language</label>
+          <div class="email-lang-controls">
+            <select id="siteLanguage" class="email-language-select">
+              <option value="English">English</option>
+              <option value="French">French</option>
+              <option value="Spanish">Spanish</option>
+              <option value="Portuguese">Portuguese</option>
+              <option value="German">German</option>
+              <option value="Italian">Italian</option>
+              <option value="Dutch">Dutch</option>
+              <option value="Polish">Polish</option>
+              <option value="Ukrainian">Ukrainian</option>
+              <option value="Russian">Russian</option>
+              <option value="Arabic">Arabic</option>
+              <option value="Hebrew">Hebrew</option>
+              <option value="Chinese (Simplified)">Chinese (Simplified)</option>
+              <option value="Chinese (Traditional)">Chinese (Traditional)</option>
+              <option value="Japanese">Japanese</option>
+              <option value="Korean">Korean</option>
+              <option value="Hindi">Hindi</option>
+              <option value="Turkish">Turkish</option>
+              <option value="Greek">Greek</option>
+              <option value="Swedish">Swedish</option>
+              <option value="Vietnamese">Vietnamese</option>
+              <option value="Thai">Thai</option>
+              <option value="__custom__">Other (type below)…</option>
+            </select>
+            <input type="text" id="siteLanguageCustom" class="email-language-custom" placeholder="e.g. Catalan, Tagalog…" hidden maxlength="80">
+          </div>
+          <p class="email-lang-hint">All headlines, buttons, nav, and form copy in Figma Make will use this language. Business name, address, phone, and logo stay as-is.</p>
+        </div>
+      </div>
+      <div class="email-modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="closeCreateSiteModal()">Cancel</button>
+        <button type="button" class="btn btn-primary" id="createSiteConfirmBtn" onclick="confirmCreateSite()">Open Figma Make</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Email preview / edit modal -->
+  <div class="email-modal-backdrop" id="emailModal" hidden>
+    <div class="email-modal" role="dialog" aria-modal="true" aria-labelledby="emailModalTitle">
+      <div class="email-modal-header">
+        <div>
+          <h2 id="emailModalTitle">Review email</h2>
+          <p class="email-modal-sub" id="emailModalSub">Edit before sending</p>
+        </div>
+        <button type="button" class="drawer-close" onclick="closeEmailModal()" aria-label="Close">✕</button>
+      </div>
+      <div class="email-modal-body">
+        <div class="field email-lang-row">
+          <label for="emailLanguage">Language</label>
+          <div class="email-lang-controls">
+            <select id="emailLanguage" class="email-language-select">
+              <option value="English">English</option>
+              <option value="French">French</option>
+              <option value="Spanish">Spanish</option>
+              <option value="Portuguese">Portuguese</option>
+              <option value="German">German</option>
+              <option value="Italian">Italian</option>
+              <option value="Dutch">Dutch</option>
+              <option value="Polish">Polish</option>
+              <option value="Ukrainian">Ukrainian</option>
+              <option value="Russian">Russian</option>
+              <option value="Arabic">Arabic</option>
+              <option value="Hebrew">Hebrew</option>
+              <option value="Chinese (Simplified)">Chinese (Simplified)</option>
+              <option value="Chinese (Traditional)">Chinese (Traditional)</option>
+              <option value="Japanese">Japanese</option>
+              <option value="Korean">Korean</option>
+              <option value="Hindi">Hindi</option>
+              <option value="Turkish">Turkish</option>
+              <option value="Greek">Greek</option>
+              <option value="Swedish">Swedish</option>
+              <option value="Vietnamese">Vietnamese</option>
+              <option value="Thai">Thai</option>
+              <option value="__custom__">Other (type below)…</option>
+            </select>
+            <input type="text" id="emailLanguageCustom" class="email-language-custom" placeholder="e.g. Catalan, Tagalog…" hidden maxlength="80">
+            <button type="button" class="btn btn-secondary" id="emailLanguageApplyBtn" onclick="regenerateEmailLanguage()">Apply</button>
+          </div>
+          <p class="email-lang-hint">Non-English needs OpenAI connected in Integrations. Names, URLs, and emails stay untranslated.</p>
+        </div>
+        <div class="field">
+          <label for="emailPreviewTo">To</label>
+          <input type="text" id="emailPreviewTo" readonly>
+        </div>
+        <div class="field">
+          <label for="emailPreviewSubject">Subject</label>
+          <input type="text" id="emailPreviewSubject" maxlength="200">
+        </div>
+        <div class="field">
+          <label for="emailPreviewBody">Message</label>
+          <textarea id="emailPreviewBody" class="email-preview-body" rows="14"></textarea>
+        </div>
+        <div class="email-deliverability">
+          <label class="email-check">
+            <input type="checkbox" id="emailTrackOpens">
+            <span>Track opens <em>(pixel — can hurt spam score; leave off for better inbox)</em></span>
+          </label>
+          <label class="email-check">
+            <input type="checkbox" id="emailUnsubFooter" checked>
+            <span>Unsubscribe footer + List-Unsubscribe header</span>
+          </label>
+          <p class="email-from-preview" id="emailFromPreview"></p>
+        </div>
+        <p class="email-modal-hint" id="emailPreviewHint"></p>
+      </div>
+      <div class="email-modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="closeEmailModal()">Cancel</button>
+        <button type="button" class="btn btn-primary" id="emailSendConfirmBtn" onclick="confirmSendEmail()">Send email</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div class="toast" id="toast"></div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="/static/js/app.js"></script>
+</body>
+</html>

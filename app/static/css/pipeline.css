@@ -1,0 +1,114 @@
+.pipeline-counts {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
+}
+
+.pipe-count {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 0.85rem 1rem;
+  text-align: center;
+}
+
+.pipe-count .n {
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+}
+
+.pipe-count .l {
+  font-size: 0.75rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-top: 0.2rem;
+}
+
+.pipeline-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.pipe-filter {
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--muted);
+  border-radius: 999px;
+  padding: 0.4rem 0.85rem;
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.pipe-filter.active,
+.pipe-filter:hover {
+  color: var(--text);
+  border-color: var(--accent);
+  background: rgba(61, 154, 122, 0.12);
+}
+
+.status-select {
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.35rem 0.5rem;
+  font: inherit;
+  font-size: 0.85rem;
+}
+
+.deal-name {
+  font-weight: 600;
+}
+
+.deal-address {
+  font-size: 0.8rem;
+  color: var(--muted);
+  margin-top: 0.15rem;
+}
+
+.learning-panel {
+  margin-bottom: 1.25rem;
+}
+
+.learning-panel .panel-title {
+  font-size: 1.05rem;
+  margin: 0 0 0.35rem;
+}
+
+.learning-winners {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin-top: 0.85rem;
+}
+
+.learning-chip {
+  border: 1px solid var(--border);
+  background: var(--bg);
+  border-radius: 10px;
+  padding: 0.65rem 0.85rem;
+  min-width: 160px;
+}
+
+.learning-chip-label {
+  font-weight: 600;
+  font-size: 0.92rem;
+}
+
+.learning-chip-meta {
+  font-size: 0.75rem;
+  color: var(--muted);
+  margin-top: 0.2rem;
+}
+
+@media (max-width: 900px) {
+  .pipeline-counts {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
