@@ -71,6 +71,7 @@ from app.services.maps_scraper import enrich_businesses
 from app.services.outreach_pipeline import find_emails_for_businesses
 from app.services.website_verifier import verify_businesses_no_website
 from app.services.lead_quality import rank_businesses
+from app.services.website_opportunity import score_website_opportunities
 from app.services.learning_loop import get_conversion_insights, get_learning_summary
 from app.services.exporter import businesses_to_json, businesses_to_csv, generate_filename
 from app.services.db import connect_db, close_db
@@ -440,6 +441,12 @@ async def _run_search(
             )
 
         if businesses:
+            job.message = "Scoring website opportunities..."
+            businesses = await score_website_opportunities(
+                businesses, progress_callback=on_progress
+            )
+
+        if businesses:
             job.message = "Ranking lead quality (learning loop)..."
             insights = await get_conversion_insights(user_id or "")
             businesses = rank_businesses(
@@ -468,6 +475,7 @@ async def _run_search(
         high = sum(1 for b in businesses if (b.no_website_score or 0) >= 80)
         no_site = sum(1 for b in businesses if not b.has_website)
         great = sum(1 for b in businesses if (b.lead_quality_score or 0) >= 75)
+        hot_opp = sum(1 for b in businesses if (b.website_opportunity_score or 0) >= 75)
         boosted = sum(1 for b in businesses if (b.learning_boost or 0) > 0)
         branded = sum(1 for b in businesses if b.brand_book and b.brand_book.status == "ready")
         with_mail = sum(1 for b in businesses if b.contact_email)
@@ -475,7 +483,8 @@ async def _run_search(
             f"Done! Found {len(businesses)} businesses"
             + (f" ({with_mail} with contact email)" if with_mail else "")
             + (f", {no_site} with no website" if is_large else f", {high} verified no website")
-            + f" — {great} great leads"
+            + f" — {hot_opp} hot website opportunities"
+            + f", {great} great leads"
             + (f", {boosted} boosted by learning" if boosted else "")
             + (f", {branded} brand books" if branded else "")
             + "."

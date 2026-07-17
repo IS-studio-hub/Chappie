@@ -173,6 +173,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   document.getElementById("senderBusinessName").addEventListener("input", saveSenderBusinessName);
   document.getElementById("senderBusinessInfo").addEventListener("input", saveSenderInfo);
   document.getElementById("targetCategories")?.addEventListener("input", saveTargetCategories);
+  document.getElementById("advancedFilters")?.addEventListener("change", applyFilter);
+  document.getElementById("advancedFilters")?.addEventListener("input", applyFilter);
   // Ensure height fits after fonts/layout settle
   requestAnimationFrame(updateSenderInfoUi);
   document.querySelectorAll(".integrations-dropdown").forEach((el) => {
@@ -1365,7 +1367,7 @@ function renderResults(result) {
   const noWebsite = allBusinesses.filter((b) => !b.has_website && !b.website_url).length;
   const verifiedHigh = allBusinesses.filter((b) => (b.no_website_score || 0) >= 80).length;
   const greatLeads = allBusinesses.filter((b) => (b.lead_quality_score || 0) >= 75).length;
-  const learningBoosted = allBusinesses.filter((b) => (b.learning_boost || 0) > 0).length;
+  const hotOpp = allBusinesses.filter((b) => (b.website_opportunity_score || 0) >= 75).length;
   const suspected = allBusinesses.filter((b) => b.no_website_status === "suspected_site").length;
 
   document.getElementById("statsRow").innerHTML = `
@@ -1375,19 +1377,19 @@ function renderResults(result) {
       <div class="stat-sub">Leads in this search</div>
     </div>
     <div class="stat-card">
+      <div class="stat-label">Hot opportunities</div>
+      <div class="stat-value">${hotOpp}</div>
+      <div class="stat-sub">Website opportunity 75+</div>
+    </div>
+    <div class="stat-card">
       <div class="stat-label">Great leads</div>
       <div class="stat-value">${greatLeads}</div>
-      <div class="stat-sub">Quality score 75+</div>
+      <div class="stat-sub">Lead quality 75+</div>
     </div>
     <div class="stat-card">
       <div class="stat-label">No website</div>
       <div class="stat-value">${noWebsite}</div>
       <div class="stat-sub">${verifiedHigh} high confidence · ${suspected} suspected site</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-label">Learning boost</div>
-      <div class="stat-value">${learningBoosted}</div>
-      <div class="stat-sub">Raised by your converting niches</div>
     </div>
     <div class="stat-card">
       <div class="stat-label">Emails Found</div>
@@ -1396,10 +1398,10 @@ function renderResults(result) {
     </div>
   `;
 
-  // Default sort by lead quality (highest first)
+  // Default sort by website opportunity (highest first)
   const sortSelect = document.getElementById("sortSelect");
   if (sortSelect && !sortSelect.dataset.scoreDefaulted) {
-    sortSelect.value = "quality";
+    sortSelect.value = "opportunity";
     sortSelect.dataset.scoreDefaulted = "1";
   }
   applyFilter();
@@ -1530,11 +1532,128 @@ function pipelineBadge(b) {
   return `<span class="${cls}" title="Outreach pipeline">${esc(deal.status_label)}${opens}</span>`;
 }
 
+function toggleAdvancedFilters() {
+  const panel = document.getElementById("advancedFilters");
+  if (!panel) return;
+  const open = panel.classList.toggle("open");
+  panel.hidden = !open;
+  document.getElementById("filtersToggleBtn")?.classList.toggle("active", open);
+}
+
+function clearAdvancedFilters() {
+  const panel = document.getElementById("advancedFilters");
+  if (!panel) return;
+  panel.querySelectorAll('input[type="checkbox"]').forEach((el) => { el.checked = false; });
+  ["filterCategory", "filterCity", "filterMinRating", "filterMinReviews", "filterOppMin", "filterOppMax"]
+    .forEach((id) => {
+      const el = document.getElementById(id);
+      if (el) el.value = "";
+    });
+  applyFilter();
+}
+
+function getAdvancedFilterState() {
+  const panel = document.getElementById("advancedFilters");
+  const flags = [];
+  panel?.querySelectorAll('input[data-flag]').forEach((el) => {
+    if (el.checked) flags.push(el.dataset.flag);
+  });
+  const num = (id) => {
+    const raw = document.getElementById(id)?.value;
+    if (raw == null || String(raw).trim() === "") return null;
+    const n = Number(raw);
+    return Number.isFinite(n) ? n : null;
+  };
+  return {
+    flags,
+    category: (document.getElementById("filterCategory")?.value || "").trim().toLowerCase(),
+    city: (document.getElementById("filterCity")?.value || "").trim().toLowerCase(),
+    minRating: num("filterMinRating"),
+    minReviews: num("filterMinReviews"),
+    oppMin: num("filterOppMin"),
+    oppMax: num("filterOppMax"),
+  };
+}
+
+function countActiveFilters(state) {
+  let n = state.flags.length;
+  if (state.category) n += 1;
+  if (state.city) n += 1;
+  if (state.minRating != null) n += 1;
+  if (state.minReviews != null) n += 1;
+  if (state.oppMin != null) n += 1;
+  if (state.oppMax != null) n += 1;
+  return n;
+}
+
+function updateFiltersActiveBadge() {
+  const badge = document.getElementById("filtersActiveCount");
+  if (!badge) return;
+  const n = countActiveFilters(getAdvancedFilterState());
+  if (n > 0) {
+    badge.hidden = false;
+    badge.textContent = String(n);
+  } else {
+    badge.hidden = true;
+    badge.textContent = "";
+  }
+}
+
+function businessMatchesAdvancedFilters(b, state) {
+  const flags = b.website_flags || {};
+
+  for (const key of state.flags) {
+    if (key === "no_website") {
+      const noSite = flags.no_website
+        || (!b.has_website && !b.website_url)
+        || b.no_website_status === "verified_none"
+        || b.no_website_status === "social_only";
+      if (!noSite) return false;
+      continue;
+    }
+    if (!flags[key]) return false;
+  }
+
+  if (state.category) {
+    const blob = [b.category, ...(b.categories || []), b.name]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+    if (!blob.includes(state.category)) return false;
+  }
+
+  if (state.city) {
+    const addr = (b.address || "").toLowerCase();
+    if (!addr.includes(state.city)) return false;
+  }
+
+  if (state.minRating != null) {
+    if (b.rating == null || Number(b.rating) < state.minRating) return false;
+  }
+
+  if (state.minReviews != null) {
+    if ((b.review_count || 0) < state.minReviews) return false;
+  }
+
+  const opp = b.website_opportunity_score;
+  if (state.oppMin != null) {
+    if (opp == null || opp < state.oppMin) return false;
+  }
+  if (state.oppMax != null) {
+    if (opp == null || opp > state.oppMax) return false;
+  }
+
+  return true;
+}
+
 function applyFilter() {
   const query = document.getElementById("filterInput").value.toLowerCase().trim();
   const sort = document.getElementById("sortSelect").value;
+  const advanced = getAdvancedFilterState();
+  updateFiltersActiveBadge();
 
   filteredBusinesses = allBusinesses.filter((b) => {
+    if (!businessMatchesAdvancedFilters(b, advanced)) return false;
     if (!query) return true;
     const haystack = [b.name, b.category, b.address, b.phone, b.province]
       .filter(Boolean)
@@ -1545,12 +1664,13 @@ function applyFilter() {
 
   filteredBusinesses.sort((a, b) => {
     switch (sort) {
+      case "opportunity": return (b.website_opportunity_score || 0) - (a.website_opportunity_score || 0);
       case "quality": return (b.lead_quality_score || 0) - (a.lead_quality_score || 0);
       case "score": return (b.no_website_score || 0) - (a.no_website_score || 0);
       case "rating": return (b.rating || 0) - (a.rating || 0);
       case "reviews": return (b.review_count || 0) - (a.review_count || 0);
       case "name": return (a.name || "").localeCompare(b.name || "");
-      default: return (b.lead_quality_score || 0) - (a.lead_quality_score || 0);
+      default: return (b.website_opportunity_score || 0) - (a.website_opportunity_score || 0);
     }
   });
 
@@ -1561,12 +1681,15 @@ function applyFilter() {
 }
 
 function updateResultCount() {
-  const great = filteredBusinesses.filter((b) => (b.lead_quality_score || 0) >= 75).length;
+  const hot = filteredBusinesses.filter((b) => (b.website_opportunity_score || 0) >= 75).length;
   const sort = document.getElementById("sortSelect")?.value;
-  const sortedNote = sort === "quality" || !sort ? " · best leads first" : "";
+  const sortedNote = sort === "opportunity" || !sort ? " · best website opportunities first" : "";
+  const total = allBusinesses.length;
+  const showing = filteredBusinesses.length;
+  const filteredNote = showing !== total ? ` of <span>${total}</span>` : "";
   document.getElementById("resultCount").innerHTML =
-    `<span>${filteredBusinesses.length}</span> businesses`
-    + (great ? ` · <span>${great}</span> great` : "")
+    `<span>${showing}</span>${filteredNote} businesses`
+    + (hot ? ` · <span>${hot}</span> hot` : "")
     + sortedNote;
 }
 
@@ -1619,6 +1742,22 @@ function noWebsiteBadge(b) {
   return `<span class="badge ${cls}" title="${esc((b.no_website_signals || []).join(" · "))}">${esc(label)} ${score}</span>`;
 }
 
+function websiteOpportunityBadge(b) {
+  const score = b.website_opportunity_score;
+  if (score == null) return "";
+  const label = b.website_opportunity_label || "Opp";
+  const tier = b.website_opportunity_tier || "cool";
+  const cls = {
+    hot: "badge-opp-hot",
+    warm: "badge-opp-warm",
+    cool: "badge-opp-cool",
+    low: "badge-opp-low",
+  }[tier] || "badge-opp-cool";
+  const title = (b.website_opportunity_breakdown || b.website_opportunity_signals || []).join(" · ")
+    || "Website opportunity score";
+  return `<span class="badge ${cls}" title="${esc(title)}">Opp ${score}</span>`;
+}
+
 function leadQualityBadge(b) {
   const score = b.lead_quality_score;
   if (score == null) return "";
@@ -1668,6 +1807,7 @@ function renderCard(b, index) {
             <div class="card-name">${esc(b.name)}</div>
             ${favoriteButton(b, index)}
           </div>
+          ${websiteOpportunityBadge(b)}
           ${leadQualityBadge(b)}
           ${brandBookBadge(b)}
           ${noWebsiteBadge(b)}
@@ -1719,6 +1859,7 @@ function renderTable() {
     return `
     <tr class="${selectedIndex === i ? "selected" : ""}" onclick="openDrawer(${i})">
       <td class="name-cell">${esc(b.name)}</td>
+      <td>${b.website_opportunity_score != null ? `${b.website_opportunity_score} · ${esc(b.website_opportunity_label || "")}` : "—"}</td>
       <td>${b.lead_quality_score != null ? `${b.lead_quality_score} · ${esc(b.lead_quality_label || "")}` : "—"}</td>
       <td>${b.no_website_score != null ? `${b.no_website_score} · ${esc(b.no_website_label || "")}` : "—"}</td>
       <td title="${esc(emails.join(', '))}">${emails.length ? esc(emails.join(", ")) : "—"}</td>
@@ -1737,7 +1878,7 @@ function renderTable() {
       <table class="data-table">
         <thead>
           <tr>
-            <th>Name</th><th>Quality</th><th>No-site</th><th>Email</th><th>Rating</th><th>Reviews</th><th>Category</th>
+            <th>Name</th><th>Opportunity</th><th>Quality</th><th>No-site</th><th>Email</th><th>Rating</th><th>Reviews</th><th>Category</th>
             <th>Address</th><th>Phone</th><th>Province</th>
           </tr>
         </thead>
@@ -1759,7 +1900,8 @@ function openDrawer(index) {
     <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:0.75rem;width:100%">
       <div>
         ${esc(b.name)}
-        <span style="margin-left:0.5rem">${leadQualityBadge(b)}</span>
+        <span style="margin-left:0.5rem">${websiteOpportunityBadge(b)}</span>
+        <span style="margin-left:0.35rem">${leadQualityBadge(b)}</span>
         <span style="margin-left:0.35rem">${noWebsiteBadge(b)}</span>
       </div>
       ${favoriteButton(b, index)}
@@ -1769,6 +1911,42 @@ function openDrawer(index) {
   document.getElementById("drawerBody").innerHTML = `
     ${b.rating ? `<div style="color:var(--warning);font-weight:600;margin-bottom:1rem">★ ${b.rating} (${b.review_count || 0} reviews)</div>` : ""}
     ${b.category ? `<div style="color:var(--text-muted);margin-bottom:1rem">${esc(b.category)}</div>` : ""}
+
+    <div class="drawer-section">
+      <h4>Website Opportunity Score</h4>
+      <div class="info-grid">
+        ${infoRow(
+          "Score",
+          b.website_opportunity_score != null
+            ? `<strong>${b.website_opportunity_score}/100</strong> · ${esc(b.website_opportunity_label || "")}`
+            : "—"
+        )}
+      </div>
+      ${(() => {
+        const rows = b.website_opportunity_breakdown || b.website_opportunity_signals || [];
+        if (!rows.length) return "";
+        return `<ul class="opp-breakdown">${rows.map((s) => `<li>${esc(s)}</li>`).join("")}</ul>`;
+      })()}
+      ${(() => {
+        const flags = b.website_flags || {};
+        const labels = {
+          no_website: "No website",
+          outdated_website: "Outdated website",
+          missing_online_store: "No online store",
+          missing_booking: "No online booking",
+          not_mobile_friendly: "Not mobile-friendly",
+          slow_website: "Slow website",
+          missing_https: "Missing HTTPS",
+          has_email: "Email found",
+          has_decision_maker: "Decision-maker email",
+        };
+        const chips = Object.entries(labels)
+          .filter(([k]) => flags[k])
+          .map(([, label]) => `<span class="flag-chip">${esc(label)}</span>`)
+          .join("");
+        return chips ? `<div class="flag-chip-row">${chips}</div>` : "";
+      })()}
+    </div>
 
     <div class="drawer-section">
       <h4>Lead quality</h4>

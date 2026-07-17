@@ -237,11 +237,15 @@
             <div class="result-count" id="resultCount"><span>0</span> businesses</div>
             <div class="search-filter">
               <span class="search-icon">🔍</span>
-              <input type="text" id="filterInput" placeholder="Filter results...">
+              <input type="text" id="filterInput" placeholder="Filter by name, address…">
             </div>
+            <button type="button" class="btn btn-secondary filters-toggle-btn" id="filtersToggleBtn" onclick="toggleAdvancedFilters()">
+              Filters <span id="filtersActiveCount" class="filters-active-count" hidden></span>
+            </button>
           </div>
           <div class="toolbar-right">
             <select class="sort-select" id="sortSelect">
+              <option value="opportunity">Sort: Website opportunity</option>
               <option value="quality">Sort: Lead quality</option>
               <option value="score">Sort: No-website score</option>
               <option value="name">Sort: Name</option>
@@ -252,6 +256,66 @@
               <button class="view-btn active" id="viewCards" onclick="setView('cards')">Cards</button>
               <button class="view-btn" id="viewTable" onclick="setView('table')">Table</button>
             </div>
+          </div>
+        </div>
+
+        <!-- Advanced lead filters -->
+        <div class="advanced-filters" id="advancedFilters" hidden>
+          <div class="advanced-filters-head">
+            <div>
+              <strong>Lead filters</strong>
+              <span class="muted">Include only businesses that match every checked condition</span>
+            </div>
+            <button type="button" class="link-btn" onclick="clearAdvancedFilters()">Clear filters</button>
+          </div>
+
+          <div class="filter-grid">
+            <fieldset class="filter-group">
+              <legend>Website gaps</legend>
+              <label class="filter-check"><input type="checkbox" data-flag="no_website"> Has no website</label>
+              <label class="filter-check"><input type="checkbox" data-flag="outdated_website"> Has an outdated website</label>
+              <label class="filter-check"><input type="checkbox" data-flag="missing_online_store"> Has no online store</label>
+              <label class="filter-check"><input type="checkbox" data-flag="missing_booking"> Has no online booking</label>
+              <label class="filter-check"><input type="checkbox" data-flag="not_mobile_friendly"> Website is not mobile-friendly</label>
+              <label class="filter-check"><input type="checkbox" data-flag="slow_website"> Low website speed</label>
+              <label class="filter-check"><input type="checkbox" data-flag="missing_https"> Missing HTTPS</label>
+            </fieldset>
+
+            <fieldset class="filter-group">
+              <legend>Contact</legend>
+              <label class="filter-check"><input type="checkbox" data-flag="has_email"> Email found</label>
+              <label class="filter-check"><input type="checkbox" data-flag="has_decision_maker"> Decision-maker email found</label>
+              <p class="filter-hint">Decision-maker = personal-looking email (e.g. jane@), not info@ / hello@</p>
+            </fieldset>
+
+            <fieldset class="filter-group">
+              <legend>Business &amp; location</legend>
+              <label class="filter-field">Category contains
+                <input type="text" id="filterCategory" placeholder="e.g. restaurant">
+              </label>
+              <label class="filter-field">City contains
+                <input type="text" id="filterCity" placeholder="e.g. Toronto">
+              </label>
+              <p class="filter-hint">City/radius for the search itself are set in Search Settings. This filters the current results.</p>
+            </fieldset>
+
+            <fieldset class="filter-group">
+              <legend>Reputation &amp; score</legend>
+              <label class="filter-field">Min Google rating
+                <input type="number" id="filterMinRating" min="0" max="5" step="0.1" placeholder="e.g. 4.0">
+              </label>
+              <label class="filter-field">Min reviews
+                <input type="number" id="filterMinReviews" min="0" step="1" placeholder="e.g. 50">
+              </label>
+              <div class="filter-range-row">
+                <label class="filter-field">Opp score min
+                  <input type="number" id="filterOppMin" min="0" max="100" step="1" placeholder="0">
+                </label>
+                <label class="filter-field">Opp score max
+                  <input type="number" id="filterOppMax" min="0" max="100" step="1" placeholder="100">
+                </label>
+              </div>
+            </fieldset>
           </div>
         </div>
 

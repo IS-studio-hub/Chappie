@@ -71,6 +71,12 @@ function renderFavorites(favorites) {
           <div class="favorite-name">${esc(f.business_name)}</div>
           ${rating ? `<div class="favorite-rating">${esc(rating)}</div>` : ""}
         </div>
+        ${(() => {
+          const biz = f.business || {};
+          const score = biz.website_opportunity_score;
+          if (score == null) return "";
+          return `<div class="favorite-opp">Website Opportunity: <strong>${score}/100</strong>${biz.website_opportunity_label ? ` · ${esc(biz.website_opportunity_label)}` : ""}</div>`;
+        })()}
         ${f.category ? `<div class="favorite-category">${esc(f.category)}</div>` : ""}
         ${f.business_address ? `<div class="favorite-meta">${esc(f.business_address)}</div>` : ""}
         ${f.phone ? `<div class="favorite-meta">${esc(f.phone)}</div>` : ""}

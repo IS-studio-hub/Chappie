@@ -56,6 +56,11 @@
   letter-spacing: 0.04em;
 }
 
+.favorite-opp {
+  font-size: 0.85rem;
+  color: var(--text);
+}
+
 .favorite-meta {
   font-size: 0.85rem;
   color: var(--muted);

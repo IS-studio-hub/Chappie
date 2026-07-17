@@ -139,6 +139,26 @@ class Business(BaseModel):
         default=None,
         description="Extra points from conversion learning loop (category/city)",
     )
+    # Website / digital-service sales opportunity (0-100)
+    website_opportunity_score: Optional[int] = Field(
+        default=None,
+        description="0-100 website & digital-service sales opportunity",
+    )
+    website_opportunity_label: Optional[str] = None
+    website_opportunity_tier: Optional[str] = None
+    website_opportunity_signals: list[str] = Field(default_factory=list)
+    website_opportunity_breakdown: list[str] = Field(
+        default_factory=list,
+        description="Human-readable point breakdown, e.g. 'No website: +35'",
+    )
+    website_flags: dict[str, bool] = Field(
+        default_factory=dict,
+        description=(
+            "Filterable digital gaps: no_website, outdated_website, not_mobile_friendly, "
+            "slow_website, missing_https, missing_booking, missing_online_store, "
+            "has_email, has_decision_maker"
+        ),
+    )
     brand_book: Optional[BrandBook] = Field(
         default=None,
         description="Brand colors, logo, tone, pricing, content, imagery for site drafts",

@@ -517,6 +517,163 @@ html, body {
 
 .results-toolbar.active { display: flex; }
 
+.filters-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.45rem 0.75rem;
+  font-size: 0.82rem;
+  white-space: nowrap;
+}
+
+.filters-toggle-btn.active {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.filters-active-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.25rem;
+  height: 1.25rem;
+  padding: 0 0.35rem;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+.advanced-filters {
+  display: none;
+  margin: 0 0 1rem;
+  padding: 1rem 1.1rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.advanced-filters.open {
+  display: block;
+}
+
+.advanced-filters-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.85rem;
+}
+
+.advanced-filters-head .muted {
+  display: block;
+  margin-top: 0.2rem;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
+.advanced-filters-head .link-btn {
+  background: none;
+  border: none;
+  color: var(--accent);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.85rem;
+  padding: 0;
+  white-space: nowrap;
+}
+
+.filter-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.85rem;
+}
+
+.filter-group {
+  margin: 0;
+  padding: 0.75rem 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  min-width: 0;
+}
+
+.filter-group legend {
+  padding: 0 0.35rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.filter-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.45rem;
+  font-size: 0.84rem;
+  color: var(--text-secondary);
+  margin: 0.35rem 0;
+  cursor: pointer;
+  line-height: 1.35;
+}
+
+.filter-check input {
+  margin-top: 0.15rem;
+  accent-color: var(--accent);
+}
+
+.filter-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin: 0.45rem 0;
+}
+
+.filter-field input {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  padding: 0.45rem 0.55rem;
+  font: inherit;
+  font-size: 0.85rem;
+}
+
+.filter-field input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.filter-range-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+}
+
+.filter-hint {
+  margin: 0.45rem 0 0;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+@media (max-width: 1100px) {
+  .filter-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 700px) {
+  .filter-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 .toolbar-left {
   display: flex;
   align-items: center;
@@ -832,6 +989,59 @@ html, body {
   background: rgba(122, 130, 153, 0.2);
   color: var(--text-secondary);
   margin-right: 0.35rem;
+}
+
+.badge-opp-hot {
+  background: rgba(232, 100, 74, 0.18);
+  color: #e8744a;
+  margin-right: 0.35rem;
+}
+
+.badge-opp-warm {
+  background: rgba(245, 185, 66, 0.15);
+  color: var(--warning);
+  margin-right: 0.35rem;
+}
+
+.badge-opp-cool {
+  background: rgba(91, 141, 239, 0.15);
+  color: #5b8def;
+  margin-right: 0.35rem;
+}
+
+.badge-opp-low {
+  background: rgba(122, 130, 153, 0.2);
+  color: var(--text-secondary);
+  margin-right: 0.35rem;
+}
+
+.opp-breakdown {
+  margin: 0.65rem 0 0;
+  padding-left: 1.1rem;
+  color: var(--text-secondary);
+  font-size: 0.88rem;
+  line-height: 1.55;
+}
+
+.opp-breakdown li {
+  margin-bottom: 0.2rem;
+}
+
+.flag-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.75rem;
+}
+
+.flag-chip {
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 0.25rem 0.55rem;
+  border-radius: 999px;
+  background: rgba(61, 154, 122, 0.12);
+  color: var(--success);
+  border: 1px solid rgba(61, 154, 122, 0.25);
 }
 
 .badge-brand {

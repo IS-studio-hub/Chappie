@@ -270,6 +270,7 @@ def rank_businesses(
 
     ranked.sort(
         key=lambda b: (
+            b.website_opportunity_score or 0,
             b.lead_quality_score or 0,
             b.learning_boost or 0,
             b.no_website_score or 0,
