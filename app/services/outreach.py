@@ -6,6 +6,18 @@ from app.config import settings
 from app.models import Business
 
 
+
+def _ban_fancy_dashes(text: str) -> str:
+    """Never allow em/en dashes in outbound email copy."""
+    if not text:
+        return text
+    text = text.replace("—", ", ")
+    text = text.replace("–", "-")
+    text = text.replace("−", "-")
+    text = re.sub(r"[ \t]*,[ \t]+", ", ", text)
+    text = re.sub(r" {2,}", " ", text)
+    return text
+
 def _first_name_from_business(name: str) -> str:
     return "there"
 
@@ -68,7 +80,7 @@ def _parse_sender_info(sender_info: str) -> dict:
         working = working.replace(url_match.group(0), " ")
     if email_match:
         working = working.replace(email_match.group(0), " ")
-    working = re.sub(r"\s+", " ", working).strip(" ,.-–")
+    working = re.sub(r"\s+", " ", working).strip(" ,.-")
 
     lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
     # Prefer a short first line as the studio name
@@ -77,7 +89,7 @@ def _parse_sender_info(sender_info: str) -> dict:
     if lines:
         first = lines[0].strip()
         first_clean = re.sub(r"https?://\S+", "", first)
-        first_clean = re.sub(r"[\w.+-]+@[\w.-]+\.\w+", "", first_clean).strip(" ,.-–")
+        first_clean = re.sub(r"[\w.+-]+@[\w.-]+\.\w+", "", first_clean).strip(" ,.-")
         looks_like_sentence = bool(
             re.search(
                 r"\b(helps|builds|creates|designs|offers|provides|we\b|our\b|and|with)\b",
@@ -92,7 +104,7 @@ def _parse_sender_info(sender_info: str) -> dict:
             for ln in lines[1:]:
                 ln2 = re.sub(r"https?://\S+", " ", ln)
                 ln2 = re.sub(r"[\w.+-]+@[\w.-]+\.\w+", " ", ln2)
-                ln2 = re.sub(r"\s+", " ", ln2).strip(" ,.-–")
+                ln2 = re.sub(r"\s+", " ", ln2).strip(" ,.-")
                 if ln2 and ln2.lower() != name.lower():
                     rest_lines.append(ln2)
             body = " ".join(rest_lines) if rest_lines else working
@@ -109,14 +121,14 @@ def _parse_sender_info(sender_info: str) -> dict:
             body = working
 
     if not name:
-        # Fallback: first 1–3 capitalized tokens
+        # Fallback: first 1-3 capitalized tokens
         tokens = re.findall(r"[A-Za-z][\w&.\'’-]*", working)
         name = " ".join(tokens[:2]) if tokens else (settings.studio_name or "Our studio")
         if len(name) > 40:
             name = (settings.studio_name or "Our studio").strip()
 
     if name and body.lower().startswith(name.lower()):
-        body = body[len(name) :].lstrip(" -–,|:;")
+        body = body[len(name) :].lstrip(" -,|:;")
 
     return {
         "name": name.strip() or (settings.studio_name or "Our studio"),
@@ -145,13 +157,13 @@ def _clean_sender_description(sender: dict) -> str:
         parts.append(ln)
     text = " ".join(parts) if parts else text
     if name and text.lower().startswith(name.lower()):
-        text = text[len(name) :].lstrip(" -–,|:;")
-    text = re.sub(r"\s+", " ", text).strip(" ,.-–")
+        text = text[len(name) :].lstrip(" -,|:;")
+    text = re.sub(r"\s+", " ", text).strip(" ,.-")
     return text
 
 
 def _intro_from_business_info(sender: dict) -> str:
-    """Short explanation of the sender's business — no links."""
+    """Short explanation of the sender's business, no links."""
     studio = (sender.get("name") or settings.studio_name or "Our studio").strip()
     desc = _clean_sender_description(sender)
     if not desc:
@@ -171,7 +183,7 @@ def _intro_from_business_info(sender: dict) -> str:
         if re.match(r"^(helps|builds|creates|designs|offers|provides)\b", intro, re.I):
             intro = f"{studio} {intro[0].lower()}{intro[1:]}"
         else:
-            intro = f"{studio} — {intro}"
+            intro = f"{studio}: {intro}"
     # Prefer a clean sentence cut over mid-word ellipsis
     if len(intro) > 320 and len(sentences) >= 2:
         first = sentences[0].strip()
@@ -181,7 +193,7 @@ def _intro_from_business_info(sender: dict) -> str:
             if re.match(r"^(helps|builds|creates|designs|offers|provides)\b", first, re.I):
                 first = f"{studio} {first[0].lower()}{first[1:]}"
             else:
-                first = f"{studio} — {first}"
+                first = f"{studio}: {first}"
         intro = first
     return intro
 
@@ -208,7 +220,7 @@ def _compress_pitch(desc: str, studio_name: str) -> str:
         if sep in text:
             text = text.split(sep)[0]
             break
-    text = re.sub(r"\s+", " ", text).strip(" ,.-–")
+    text = re.sub(r"\s+", " ", text).strip(" ,.-")
     if not text:
         return f"{studio} builds websites"
 
@@ -254,32 +266,32 @@ def build_unique_email_subtitle(sender_info: str, business: Business) -> str:
         city,
     ])
     options = [
-        f"{pitch} — idea for {biz}.",
+        f"{pitch}: idea for {biz}.",
         f"Quick note for {biz} from {studio}.",
         f"{studio}: a short site idea for {biz}.",
-        f"Saw {biz} in {city} — {pitch}",
+        f"Saw {biz} in {city}: {pitch}",
         f"For {biz}: {pitch}",
         f"{pitch} Worth a look for {biz}.",
-        f"{studio} × {biz} — {pitch}",
+        f"{studio} x {biz}: {pitch}",
         f"One idea for {biz} ({cat}) from {studio}.",
         f"{biz}: {pitch}",
-        f"About {biz}'s site — {pitch}",
+        f"About {biz}'s site: {pitch}",
     ]
     line = _stable_pick(seed, options)
     if len(line) > 78:
         line = line[:75].rsplit(" ", 1)[0].rstrip(" ,.-") + "…"
-    return line
+    return _ban_fancy_dashes(line)
 
 
 def _positive_highlights(business: Business, city: str) -> list[str]:
-    """Warm, specific standouts — not dry Category/Location bullets."""
+    """Warm, specific standouts, not dry Category/Location bullets."""
     name = (business.name or "your business").strip()
     cat = (business.category or "").strip()
     highlights: list[str] = []
 
     if business.rating and business.review_count:
         highlights.append(
-            f"Customers clearly trust you — {business.rating}★ from "
+            f"Customers clearly trust you: {business.rating}★ from "
             f"{business.review_count} Google reviews."
         )
     elif business.rating:
@@ -297,7 +309,7 @@ def _positive_highlights(business: Business, city: str) -> list[str]:
         )
     elif city and city != "your area":
         highlights.append(
-            f"You have a solid presence in {city} — the kind of spot people already know and recommend."
+            f"You have a solid presence in {city}, the kind of spot people already know and recommend."
         )
 
     desc = (business.description or "").strip()
@@ -309,7 +321,7 @@ def _positive_highlights(business: Business, city: str) -> list[str]:
 
     if business.photo_count and business.photo_count >= 8:
         highlights.append(
-            f"Your Google profile already shows personality — {business.photo_count} photos help people get a feel for {name} before they visit."
+            f"Your Google profile already shows personality. {business.photo_count} photos help people get a feel for {name} before they visit."
         )
 
     products = getattr(business, "products", None) or []
@@ -317,7 +329,7 @@ def _positive_highlights(business: Business, city: str) -> list[str]:
         names = [p.name for p in products[:3] if getattr(p, "name", None)]
         if names:
             highlights.append(
-                "You're already offering things people look for — "
+                "You're already offering things people look for: "
                 + ", ".join(names)
                 + ("…" if len(products) > 3 else "")
                 + "."
@@ -326,9 +338,9 @@ def _positive_highlights(business: Business, city: str) -> list[str]:
     bb = getattr(business, "brand_book", None)
     tone = getattr(bb, "tone", None) if bb else None
     if tone:
-        highlights.append(f"Your brand comes across as {tone.lower().rstrip('.')} — a website should reflect that same feel.")
+        highlights.append(f"Your brand comes across as {tone.lower().rstrip('.')}. A website should reflect that same feel.")
 
-    # Deduplicate and keep 2–4
+    # Deduplicate and keep 2-4
     seen: set[str] = set()
     out: list[str] = []
     for h in highlights:
@@ -401,6 +413,9 @@ def build_outreach_email_html(
     studio_email: str = "",
     studio_url: str = "",
     business_name: str = "",
+    prototype_lead: str = "",
+    prototype_follow: str = "",
+    after_cta_html: str = "",
 ) -> str:
     """Dark card HTML matching the verification email look, with CTA button."""
     studio = html.escape(studio_name or "Our studio")
@@ -409,13 +424,21 @@ def build_outreach_email_html(
         f"Website concept for {business_name}" if business_name else "Website concept"
     )
     intro_html = html.escape(intro).replace("\n", "<br>\n")
+    biz = html.escape(business_name or "your business")
 
     cta = ""
     if prototype_url.strip():
         href = html.escape(prototype_url.strip(), quote=True)
+        lead = (prototype_lead or "").strip() or (
+            f"I put together a website concept specifically for {business_name or 'your business'}:"
+        )
+        follow = (prototype_follow or "").strip() or (
+            f"This is a working prototype. Click through it to see how {business_name or 'your business'} "
+            "could look online with a modern, professional site tailored to your brand."
+        )
         cta = f"""
               <p style="margin:0 0 8px;color:#eef3f8;line-height:1.55;font-size:15px;">
-                I put together a website concept specifically for {html.escape(business_name or "your business")}:
+                {html.escape(lead)}
               </p>
               <p style="margin:0 0 16px;text-align:center;">
                 <a href="{href}"
@@ -424,8 +447,10 @@ def build_outreach_email_html(
                 </a>
               </p>
               <p style="margin:0 0 20px;color:#8fa0b5;line-height:1.55;font-size:14px;">
-                This is a working prototype — click through it to see how {html.escape(business_name or "your business")} could look online with a modern, professional site tailored to your brand.
+                {html.escape(follow)}
               </p>"""
+
+    after = after_cta_html or ""
 
     sig_bits = []
     if studio_email:
@@ -452,6 +477,7 @@ def build_outreach_email_html(
               <p style="margin:0 0 18px;color:#c5d0dc;line-height:1.55;font-size:15px;">{intro_html}</p>
               {body_sections_html}
               {cta}
+              {after}
               <p style="margin:24px 0 0;color:#8fa0b5;font-size:13px;line-height:1.5;">Best regards,</p>
               <p style="margin:6px 0 0;color:#8fa0b5;font-size:13px;line-height:1.6;">{sig_html}</p>
               <p style="margin:24px 0 0;color:#6b7c90;font-size:12px;line-height:1.5;">
@@ -511,7 +537,7 @@ def wrap_outreach_plain_as_html(
         flags=re.I,
     )
     rest = re.sub(
-        r"Best regards,.*$",
+        r"Best regards.*$",
         "",
         rest,
         flags=re.I | re.S,
@@ -590,6 +616,337 @@ def generate_outreach(business: Business, sender_info: str = "") -> tuple[str, s
     return subject, body
 
 
+def _email_seed(business: Business, studio: str, salt: str = "") -> str:
+    return "|".join([
+        business.place_id or "",
+        (business.name or "").strip().lower(),
+        (studio or "").strip().lower(),
+        salt,
+    ])
+
+
+def _pick(business: Business, studio: str, salt: str, options: list[str]) -> str:
+    return _stable_pick(_email_seed(business, studio, salt), options)
+
+
+def _short_business_info_pitch(sender: dict) -> str:
+    """One clean sentence from Business Info, no URLs/emails."""
+    studio = (sender.get("name") or settings.studio_name or "Our studio").strip()
+    desc = _clean_sender_description(sender)
+    if not desc:
+        return f"{studio} helps local businesses with clear, professional websites."
+
+    sentences = [s.strip() for s in re.split(r"(?<=[.!?])\s+", desc) if s.strip()]
+    first = sentences[0]
+    if not first.endswith((".", "!", "?")):
+        first += "."
+    if not re.match(rf"^{re.escape(studio)}\b", first, re.I):
+        if re.match(r"^(helps|builds|creates|designs|offers|provides)\b", first, re.I):
+            first = f"{studio} {first[0].lower()}{first[1:]}"
+        else:
+            first = f"{studio}: {first}"
+    # Trim long service laundry-lists: keep up to first "and" clause or ~120 chars of substance
+    if len(first) > 140:
+        # Prefer cut before a long "with X, Y, and Z" list
+        m = re.match(
+            rf"^({re.escape(studio)}\s+\w+\b.+?)(?:\s+with\s+.+)$",
+            first.rstrip("."),
+            re.I,
+        )
+        if m and len(m.group(1)) >= 40:
+            first = m.group(1).rstrip(" ,") + "."
+        if len(first) > 140:
+            cut = first[:137].rsplit(" ", 1)[0].rstrip(" ,.-")
+            first = cut + ("…" if not cut.endswith((".", "!", "?")) else "")
+    return first
+
+
+def _we_clause_from_pitch(pitch: str, studio: str) -> str:
+    """'IS Studio helps X.' -> 'we help X.' for use after studio intro."""
+    text = (pitch or "").strip()
+    conjugations = {
+        "helps": "help",
+        "builds": "build",
+        "creates": "create",
+        "designs": "design",
+        "offers": "offer",
+        "provides": "provide",
+        "makes": "make",
+        "crafts": "craft",
+        "develops": "develop",
+        "delivers": "deliver",
+    }
+    m = re.match(
+        rf"^{re.escape(studio)}\s+({'|'.join(conjugations.keys())})\b(.*)$",
+        text,
+        re.I,
+    )
+    if m:
+        verb = conjugations[m.group(1).lower()]
+        rest = m.group(2).strip()
+        return f"we {verb} {rest}".strip()
+    if text.lower().startswith(studio.lower()):
+        rest = text[len(studio) :].lstrip(" --,")
+        if rest:
+            return rest[0].lower() + rest[1:] if rest[0].isupper() else rest
+    return text[0].lower() + text[1:] if text and text[0].isupper() else text
+
+
+def _varied_intro(sender: dict, business: Business) -> str:
+    studio = (sender.get("name") or settings.studio_name or "Our studio").strip()
+    pitch = _short_business_info_pitch(sender)
+    we = _we_clause_from_pitch(pitch, studio)
+    we_cap = we[0].upper() + we[1:] if we else we
+
+    return _pick(business, studio, "intro", [
+        f"I'm {studio}. {we_cap}",
+        f"Writing from {studio}: {we}",
+        f"{studio} here. {we_cap}",
+        f"I run {studio}. {we_cap}",
+        f"Quick note from {studio}: {we}",
+        f"I'm with {studio}. {we_cap}",
+    ])
+
+def _varied_opener(business: Business, city: str, studio: str) -> str:
+    biz = business.name
+    cat = (business.category or "").strip().lower()
+    rating = business.rating
+    reviews = business.review_count
+
+    options: list[str] = []
+    if rating and reviews:
+        options.extend([
+            f"I came across {biz} on Google Maps. {rating} stars from {reviews} reviews is impressive.",
+            f"While looking at local businesses in {city}, {biz} stood out: {rating}★ across {reviews} Google reviews.",
+            f"{biz} caught my eye on Google Maps. {rating} stars from {reviews} reviews is the kind of trust a strong website should match.",
+            f"I found {biz} on Google Maps and noticed customers already rate you {rating}/5 ({reviews} reviews).",
+        ])
+    if cat:
+        options.extend([
+            f"I came across {biz} on Google Maps. As a {cat} in {city}, you clearly have a strong local presence.",
+            f"Looking at {cat} businesses in {city}, {biz} stood out as a place people already know.",
+            f"I found {biz} while researching {cat} options in {city}.",
+        ])
+    options.extend([
+        f"I came across {biz} on Google Maps and was impressed by your presence in {city}.",
+        f"I was exploring businesses in {city} and {biz} stood out.",
+        f"Saw {biz} on Google Maps and wanted to reach out personally.",
+    ])
+    # Deduplicate while preserving order
+    seen: set[str] = set()
+    uniq = []
+    for o in options:
+        if o not in seen:
+            seen.add(o)
+            uniq.append(o)
+    return _pick(business, studio, "opener", uniq)
+
+
+def _varied_opportunity(business: Business, city: str, studio: str) -> str:
+    biz = business.name
+    flags = business.website_flags or {}
+    no_site = (
+        flags.get("no_website")
+        or (not business.has_website and not business.website_url)
+        or business.no_website_status in ("verified_none", "social_only")
+    )
+    has_site = bool(business.has_website or business.website_url) and not no_site
+
+    if no_site:
+        return _pick(business, studio, "opp", [
+            f"I noticed {biz} doesn't currently have a dedicated website. That's a real opportunity, since customers searching in {city} may land on competitors instead.",
+            f"{biz} looks busy offline, but without a clear website, people searching in {city} may never find you.",
+            f"One gap stood out: {biz} still doesn't have a proper website. A simple site could turn Google interest in {city} into calls and visits.",
+            f"You don't seem to have a dedicated website yet. Happy to show how that could help {biz} win more customers in {city}.",
+        ])
+
+    if flags.get("outdated_website") or flags.get("not_mobile_friendly") or flags.get("slow_website"):
+        return _pick(business, studio, "opp-weak", [
+            f"Your online presence for {biz} could work harder. A fresher, mobile-friendly site would better match the quality of your business in {city}.",
+            f"I took a quick look at {biz}'s current site. There's a clear chance to modernize it so more people in {city} book with you online.",
+            f"A stronger website for {biz} could turn more local searches in {city} into customers. Happy to show what that could look like.",
+        ])
+
+    if has_site:
+        return _pick(business, studio, "opp-has", [
+            f"Even with an online presence, a clearer website concept for {biz} could help you convert more of the interest you're already earning in {city}.",
+            f"I put together a few ideas for how {biz} could show up even stronger online in {city}.",
+        ])
+
+    return _pick(business, studio, "opp-fallback", [
+        f"I think {biz} could win more customers in {city} with a clearer website presence.",
+        f"A focused website for {biz} would make it easier for people in {city} to choose you.",
+    ])
+
+
+def _varied_highlight_heading(business: Business, studio: str) -> str:
+    return _pick(business, studio, "hl-head", [
+        "Here's what stood out about your business:",
+        "A few things that caught my attention:",
+        "Why I reached out specifically to you:",
+        "What stood out about your listing:",
+    ])
+
+
+def _varied_highlights(business: Business, city: str, studio: str) -> list[str]:
+    """Build 2-3 unique positive bullets from card details."""
+    name = (business.name or "your business").strip()
+    cat = (business.category or "").strip()
+    pool: list[str] = []
+
+    if business.rating and business.review_count:
+        pool.extend([
+            f"Customers clearly trust you: {business.rating}★ from {business.review_count} Google reviews.",
+            f"{business.review_count} Google reviews at {business.rating} stars is strong social proof.",
+            f"Your {business.rating}-star rating across {business.review_count} reviews shows people already recommend {name}.",
+        ])
+    elif business.rating:
+        pool.append(f"A {business.rating}-star Google rating says a lot about the experience you deliver.")
+    elif business.review_count and business.review_count > 5:
+        pool.append(f"You've built real local proof with {business.review_count} Google reviews.")
+
+    if cat:
+        pool.extend([
+            f"As a {cat.lower()} in {city}, you're right where neighborhood customers need you.",
+            f"Being a local {cat.lower()} in {city} puts you in a great position. A website would make that easier to find.",
+            f"{cat} businesses like yours in {city} often grow faster once they show up clearly online.",
+        ])
+    elif city and city != "your area":
+        pool.append(f"You have a solid presence in {city}, the kind of spot people already know and recommend.")
+
+    desc = (business.description or "").strip()
+    if desc:
+        snippet = desc[:140].rstrip()
+        if len(desc) > 140:
+            snippet = snippet.rsplit(" ", 1)[0] + "…"
+        pool.append(snippet)
+
+    if business.phone:
+        pool.append(
+            "You're easy to reach by phone. A website could make hours, services, and contact just as clear online."
+        )
+
+    products = getattr(business, "products", None) or []
+    if products:
+        names = [p.name for p in products[:3] if getattr(p, "name", None)]
+        if names:
+            pool.append("People already look for what you offer: " + ", ".join(names) + ".")
+
+    if business.hours:
+        pool.append("Your hours are listed locally. A site could keep that info (and booking) available 24/7.")
+
+    if business.photo_count and business.photo_count >= 8:
+        pool.append(
+            f"Your Google profile already shows personality. {business.photo_count} photos help people get a feel for {name}."
+        )
+
+    bb = getattr(business, "brand_book", None)
+    tone = getattr(bb, "tone", None) if bb else None
+    if tone:
+        pool.append(
+            f"Your brand comes across as {tone.lower().rstrip('.')}. A website should reflect that same feel."
+        )
+
+    if not pool:
+        pool = [
+            f"{name} already has the fundamentals of a business people can trust.",
+            f"A clear website would make it easier for new customers in {city} to find and choose you.",
+        ]
+
+    # Pick 2 unique lines, enough detail without padding the email
+    chosen: list[str] = []
+    used: set[str] = set()
+    for i in range(min(4, len(pool))):
+        rotated = pool[i:] + pool[:i]
+        line = _pick(business, studio, f"hl-{i}", rotated)
+        if line.lower() in used:
+            continue
+        used.add(line.lower())
+        chosen.append(line)
+        if len(chosen) >= 2:
+            break
+    return chosen[:2] if chosen else pool[:2]
+
+
+def _varied_benefits(business: Business, studio: str) -> tuple[str, list[str]]:
+    biz = business.name
+    heading = _pick(business, studio, "ben-head", [
+        f"A professional website would help {biz}:",
+        f"With the right site, {biz} could:",
+        f"Here's what a clear website can do for {biz}:",
+        f"For {biz}, a strong site would make it easier to:",
+    ])
+    sets = [
+        [
+            "Show up when customers search Google",
+            "Build trust before they walk through the door",
+        ],
+        [
+            "Turn Google Maps interest into booked visits",
+            "Look as professional online as you do in person",
+        ],
+        [
+            "Win customers who currently find competitors first",
+            "Make your reviews work harder for new business",
+        ],
+        [
+            "Give locals a simple place to contact you",
+            "Present your offer clearly on mobile",
+        ],
+    ]
+    idx = int(hashlib.sha256(_email_seed(business, studio, "ben-set").encode()).hexdigest()[:8], 16) % len(sets)
+    return heading, sets[idx]
+
+
+def _varied_prototype(business: Business, city: str, studio: str, prototype_link: str) -> str:
+    biz = business.name
+    if prototype_link:
+        lead = _pick(business, studio, "proto-lead", [
+            f"I put together a website concept specifically for {biz}:",
+            f"Here's a working prototype tailored to {biz}:",
+            f"I drafted a quick site concept for {biz}. Take a look:",
+            f"Built a short prototype so you can see {biz} online:",
+        ])
+        follow = _pick(business, studio, "proto-follow", [
+            f"This is a working prototype. Click through it to see how {biz} could look online with a modern site tailored to your brand.",
+            f"Click through when you have a minute. It's meant to feel like {biz}, not a generic template.",
+            f"It's interactive, so you can click around and picture how customers in {city} would experience {biz} online.",
+            f"No commitment: just a concrete look at what {biz} could present online.",
+        ])
+        return f"{lead}\n{prototype_link}\n\n{follow}"
+
+    return _pick(business, studio, "proto-none", [
+        f"I'd love to sketch a custom website concept for {biz} that matches your quality and helps you win more customers in {city}.",
+        f"Happy to put together a short visual concept for {biz}: something clear, modern, and built around your services.",
+        f"If useful, I can prepare a simple site mockup for {biz} so you can see the direction before any commitment.",
+    ])
+
+
+def _varied_cta(business: Business, studio: str) -> str:
+    biz = business.name
+    return _pick(business, studio, "cta", [
+        f"I'd love to chat about bringing this to life for {biz}. Would you be open to a quick 15-minute call this week?",
+        f"Would you be open to a short 15-minute call to see if this is useful for {biz}?",
+        f"If this looks relevant, happy to hop on a quick call and walk through the idea for {biz}.",
+        f"Are you free for a brief call this week? I can show how this could work for {biz} in about 15 minutes.",
+        f"Curious if a quick call makes sense. 15 minutes to see whether this helps {biz}.",
+    ])
+
+
+def _varied_subject(business: Business, studio: str) -> str:
+    biz = business.name
+    city = _city_from_address(business.address)
+    return _pick(business, studio, "subject", [
+        f"Website concept for {biz}: take a look",
+        f"Quick idea for {biz}'s online presence",
+        f"{biz}: a short website concept from {studio}",
+        f"Saw {biz} in {city}: website idea inside",
+        f"A site concept tailored to {biz}",
+        f"{studio} x {biz}: quick website mockup",
+        f"Something for {biz} to review (2 min)",
+    ])
+
+
 def generate_send_email(
     business: Business,
     sender_info: str = "",
@@ -598,10 +955,10 @@ def generate_send_email(
     sender_business_name: str = "",
     require_sender_info: bool = True,
 ) -> tuple[str, str, str]:
-    """Write a shorter outreach email. Returns (subject, plain_body, html_body)."""
+    """Write a short, unique outreach email. Returns (subject, plain_body, html_body)."""
     if require_sender_info and not sender_info.strip():
         raise ValueError(
-            "Add Your Business Info in the sidebar before sending — "
+            "Add Your Business Info in the sidebar before sending, "
             "it is used to personalize the pitch."
         )
     if require_sender_info and not (sender_business_name or "").strip():
@@ -624,62 +981,21 @@ def generate_send_email(
     studio_name = sender["name"]
     studio_url = sender.get("url") or ""
     studio_email = sender.get("email") or ""
-    intro = _intro_from_business_info(sender)
     biz = business.name
 
-    if business.rating and business.review_count:
-        opener = (
-            f"I came across {biz} on Google Maps — "
-            f"{business.rating} stars from {business.review_count} reviews is impressive."
-        )
-    elif business.category:
-        opener = (
-            f"I came across {biz} on Google Maps — "
-            f"as a {business.category.lower()} in {city}, you clearly have a strong local presence."
-        )
-    else:
-        opener = (
-            f"I came across {biz} on Google Maps and was impressed "
-            f"by your local presence in {city}."
-        )
-
-    opportunity = (
-        f"I noticed {biz} doesn't currently have a dedicated website. "
-        f"That's a real opportunity — customers searching online in {city} "
-        f"may be finding your competitors instead."
-    )
-
-    highlights = _positive_highlights(business, city)
-    highlight_block = "Here's what stood out about your business:\n" + "\n".join(
-        f"  • {h}" for h in highlights
-    )
-
-    benefits = [
-        "Show up when customers search Google",
-        "Build trust before they walk through the door",
-        "Showcase your services, hours, and contact info 24/7",
-        "Turn your great Google reviews into new customers",
-    ]
-    benefits_block = (
-        f"A professional website would help {biz}:\n\n"
-        + "\n".join(f"  • {b}" for b in benefits)
-    )
+    intro = _varied_intro(sender, business)
+    opener = _varied_opener(business, city, studio_name)
+    opportunity = _varied_opportunity(business, city, studio_name)
+    hl_heading = _varied_highlight_heading(business, studio_name)
+    highlights = _varied_highlights(business, city, studio_name)
+    highlight_block = f"{hl_heading}\n" + "\n".join(f"  • {h}" for h in highlights)
+    ben_heading, benefits = _varied_benefits(business, studio_name)
+    benefits_block = f"{ben_heading}\n\n" + "\n".join(f"  • {b}" for b in benefits)
 
     prototype_link = figma_prototype_link.strip()
-    if prototype_link:
-        prototype_plain = (
-            f"I put together a website concept specifically for {biz}:\n"
-            f"{prototype_link}\n\n"
-            f"This is a working prototype — click through it to see how {biz} "
-            f"could look online with a modern, professional site tailored to your brand."
-        )
-    else:
-        prototype_plain = (
-            f"I'd love to design a custom website concept for {biz} "
-            f"that reflects the quality of your business and helps you win more customers in {city}."
-        )
-
-    subject = f"Website concept for {biz} — take a look"
+    prototype_plain = _varied_prototype(business, city, studio_name, prototype_link)
+    cta = _varied_cta(business, studio_name)
+    subject = _varied_subject(business, studio_name)
 
     sig_lines = ["Best regards,"]
     if studio_email:
@@ -703,56 +1019,59 @@ def generate_send_email(
 
 {highlight_block}
 
-{prototype_plain}
-
 {benefits_block}
 
-I'd love to chat about bringing this to life for {biz}. Would you be open to a quick 15-minute call this week?
+{prototype_plain}
+
+{cta}
 
 {signature}
 
 {unsub}"""
 
-    # HTML sections (CTA handled separately in build_outreach_email_html)
-    html_sections = [
+    # Before prototype button: opener → opportunity → highlights → benefits
+    before_cta = [
         _html_p(opener),
         _html_p(opportunity),
-        '<p style="margin:0 0 8px;color:#eef3f8;line-height:1.55;font-size:15px;font-weight:600;">'
-        "Here's what stood out about your business:</p>",
+        f'<p style="margin:0 0 8px;color:#eef3f8;line-height:1.55;font-size:15px;font-weight:600;">{html.escape(hl_heading)}</p>',
         _html_bullets(highlights),
+        f'<p style="margin:16px 0 8px;color:#eef3f8;line-height:1.55;font-size:15px;font-weight:600;">{html.escape(ben_heading)}</p>',
+        _html_bullets(benefits),
     ]
     if not prototype_link:
-        html_sections.append(_html_p(prototype_plain))
-    html_sections.append(
-        '<p style="margin:0 0 8px;color:#eef3f8;line-height:1.55;font-size:15px;font-weight:600;">'
-        f"A professional website would help {html.escape(biz)}:</p>"
-    )
-    html_sections.append(_html_bullets(benefits))
-    html_sections.append(
-        _html_p(
-            f"I'd love to chat about bringing this to life for {biz}. "
-            "Would you be open to a quick 15-minute call this week?"
-        )
-    )
+        before_cta.append(_html_p(prototype_plain))
+
+    # CTA right after the prototype button, goal is a reply / call
+    after_cta = [_html_p(cta)]
+
+    proto_lines = [ln.strip() for ln in prototype_plain.split("\n") if ln.strip()]
+    proto_lead = proto_lines[0] if proto_lines else ""
+    proto_follow = " ".join(
+        ln for ln in proto_lines[1:]
+        if not ln.startswith("http")
+    ).strip()
 
     html_body = build_outreach_email_html(
         studio_name=studio_name,
         intro=f"Hi {contact},\n\n{intro}",
-        body_sections_html="\n".join(html_sections),
+        body_sections_html="\n".join(before_cta),
         prototype_url=prototype_link,
         studio_email=studio_email,
         studio_url=studio_url,
         business_name=biz,
+        prototype_lead=proto_lead if prototype_link else "",
+        prototype_follow=proto_follow if prototype_link else "",
+        after_cta_html="\n".join(after_cta),
     )
 
-    return subject, plain.strip(), html_body
+    return _ban_fancy_dashes(subject), _ban_fancy_dashes(plain.strip()), _ban_fancy_dashes(html_body)
 
 
 def apply_outreach_to_businesses(
     businesses: list[Business],
     sender_info: str = "",
 ) -> list[Business]:
-    """Deprecated for search — kept for export/compat. Prefer generate_send_email at send time."""
+    """Deprecated for search, kept for export/compat. Prefer generate_send_email at send time."""
     updated = []
     for biz in businesses:
         updated.append(biz.model_copy(update={

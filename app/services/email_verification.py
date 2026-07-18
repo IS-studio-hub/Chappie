@@ -81,7 +81,7 @@ async def start_email_signup(
                 Or paste this link into your browser:<br>
                 <a href="{verify_url}" style="color:#c4a35a;word-break:break-all;">{verify_url}</a>
               </p>
-              <p style="margin:24px 0 0;color:#8fa0b5;font-size:12px;">— {studio}</p>
+              <p style="margin:24px 0 0;color:#8fa0b5;font-size:12px;">{studio}</p>
             </td>
           </tr>
         </table>
@@ -94,7 +94,7 @@ async def start_email_signup(
     plain = (
         f"Hi {display_name},\n\n"
         f"Verify your email to create your Chappie account:\n{verify_url}\n\n"
-        f"This link expires in {VERIFY_TOKEN_HOURS} hours.\n\n— {studio}"
+        f"This link expires in {VERIFY_TOKEN_HOURS} hours.\n\n{studio}"
     )
 
     try:

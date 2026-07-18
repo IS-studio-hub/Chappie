@@ -52,7 +52,7 @@ def connect_gmail(email: str, app_password: str) -> dict:
             f"Sign in to https://myaccount.google.com/apppasswords as **{email}** (not a different Google account).",
             "Enable 2-Step Verification first, then create a new App Password for 'Mail'.",
             "If using Google Workspace, your admin must allow App Passwords in Admin Console → Security.",
-            "Try 'Connect with Google' instead — it works better for Workspace accounts.",
+            "Try 'Connect with Google' instead. It works better for Workspace accounts.",
         ]
         raise ValueError(
             "Gmail authentication failed.\n\n"
