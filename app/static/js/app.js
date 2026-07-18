@@ -1364,11 +1364,7 @@ function renderResults(result) {
 
   const withPhone = allBusinesses.filter((b) => b.phone).length;
   const withEmail = allBusinesses.filter((b) => getBusinessEmails(b).length).length;
-  const noWebsite = allBusinesses.filter((b) => !b.has_website && !b.website_url).length;
-  const verifiedHigh = allBusinesses.filter((b) => (b.no_website_score || 0) >= 80).length;
-  const greatLeads = allBusinesses.filter((b) => (b.lead_quality_score || 0) >= 75).length;
   const hotOpp = allBusinesses.filter((b) => (b.website_opportunity_score || 0) >= 75).length;
-  const suspected = allBusinesses.filter((b) => b.no_website_status === "suspected_site").length;
 
   document.getElementById("statsRow").innerHTML = `
     <div class="stat-card">
@@ -1380,16 +1376,6 @@ function renderResults(result) {
       <div class="stat-label">Hot opportunities</div>
       <div class="stat-value">${hotOpp}</div>
       <div class="stat-sub">Website opportunity 75+</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-label">Great leads</div>
-      <div class="stat-value">${greatLeads}</div>
-      <div class="stat-sub">Lead quality 75+</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-label">No website</div>
-      <div class="stat-value">${noWebsite}</div>
-      <div class="stat-sub">${verifiedHigh} high confidence · ${suspected} suspected site</div>
     </div>
     <div class="stat-card">
       <div class="stat-label">Emails Found</div>
