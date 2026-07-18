@@ -113,7 +113,9 @@ async def startup():
     except Exception:
         pass
     gmail_oauth.init_gmail_oauth()
-    # OpenAI / Figma / user Gmail are per-account — not auto-connected from .env
+    from app.services.gmail_sender import init_system_gmail_from_settings
+    init_system_gmail_from_settings()
+    # OpenAI / Figma / user Gmail are per-account - not auto-connected from .env
 
 
 @app.on_event("shutdown")

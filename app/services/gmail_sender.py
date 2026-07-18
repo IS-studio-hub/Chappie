@@ -9,6 +9,16 @@ _gmail_user: str | None = None
 _gmail_app_password: str | None = None
 
 
+def init_system_gmail_from_settings() -> None:
+    """Load system SMTP credentials from env for signup verification on Railway."""
+    global _gmail_user, _gmail_app_password
+    user = (settings.gmail_user or "").strip()
+    password = (settings.gmail_app_password or "").strip().replace(" ", "")
+    if user and password:
+        _gmail_user = user
+        _gmail_app_password = password
+
+
 def is_gmail_connected() -> bool:
     return gmail_oauth.is_gmail_oauth_connected() or bool(_gmail_user and _gmail_app_password)
 

@@ -14,6 +14,10 @@ class Settings(BaseSettings):
     studio_name: str = "IS Studio"
     studio_url: str = "https://is-studio-hub.github.io/isstudio/"
     studio_email: str = "hello@isexperience.house"
+    # System Gmail for signup verification emails (Railway / production)
+    gmail_user: str = ""
+    gmail_app_password: str = ""
+    gmail_token_json: str = ""
     host: str = "0.0.0.0"
     port: int = 8000
 

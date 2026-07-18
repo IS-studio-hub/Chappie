@@ -1,4 +1,5 @@
 import base64
+import json
 import secrets
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -19,7 +20,7 @@ SCOPES = [
 
 TOKEN_PATH = Path(__file__).resolve().parents[2] / ".gmail_token.json"
 
-# System Gmail (verification emails) — file-based
+# System Gmail (verification emails) - file or GMAIL_TOKEN_JSON env
 _credentials: Credentials | None = None
 # Per-user OAuth pending flows: state -> (Flow, user_id)
 _pending_flows: dict[str, tuple[Flow, str]] = {}
@@ -48,14 +49,17 @@ def _client_config() -> dict:
 
 
 def _save_credentials(creds: Credentials) -> None:
-    TOKEN_PATH.write_text(creds.to_json(), encoding="utf-8")
-
-
-def _load_credentials() -> Credentials | None:
-    if not TOKEN_PATH.exists():
-        return None
     try:
-        creds = Credentials.from_authorized_user_file(str(TOKEN_PATH))
+        TOKEN_PATH.write_text(creds.to_json(), encoding="utf-8")
+    except OSError:
+        # Ephemeral containers may not persist the file; in-memory creds still work.
+        pass
+
+
+def _creds_from_authorized_user(raw: str | dict) -> Credentials | None:
+    try:
+        info = json.loads(raw) if isinstance(raw, str) else raw
+        creds = Credentials.from_authorized_user_info(info, SCOPES)
         if not creds:
             return None
         if creds.expired and creds.refresh_token:
@@ -64,6 +68,25 @@ def _load_credentials() -> Credentials | None:
         return creds if creds.valid else None
     except Exception:
         return None
+
+
+def _load_credentials() -> Credentials | None:
+    if TOKEN_PATH.exists():
+        try:
+            creds = Credentials.from_authorized_user_file(str(TOKEN_PATH), SCOPES)
+            if creds:
+                if creds.expired and creds.refresh_token:
+                    creds.refresh(Request())
+                    _save_credentials(creds)
+                if creds.valid:
+                    return creds
+        except Exception:
+            pass
+
+    raw = (settings.gmail_token_json or "").strip()
+    if raw:
+        return _creds_from_authorized_user(raw)
+    return None
 
 
 def ensure_gmail_credentials() -> Credentials | None:
