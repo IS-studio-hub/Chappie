@@ -168,10 +168,19 @@ def complete_oauth_flow(code: str, state: str = "") -> tuple[Credentials, str]:
 
 
 def get_oauth_setup_info() -> dict:
+    client_id = settings.google_oauth_client_id or ""
+    project = settings.google_cloud_project or "weebo-409921"
+    console_url = (
+        f"https://console.cloud.google.com/apis/credentials/oauthclient/{client_id}"
+        f"?project={project}"
+        if client_id
+        else f"https://console.cloud.google.com/apis/credentials?project={project}"
+    )
     return {
         "redirect_uri": get_redirect_uri(),
-        "console_url": f"https://console.cloud.google.com/apis/credentials?project={settings.google_cloud_project}",
-        "client_id": settings.google_oauth_client_id,
+        "console_url": console_url,
+        "client_id": client_id,
+        "javascript_origin": (settings.app_base_url or "").rstrip("/"),
     }
 
 

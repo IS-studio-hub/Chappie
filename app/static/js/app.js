@@ -234,11 +234,18 @@ async function loadGmailOAuthSetup() {
     const res = await fetch("/api/gmail/oauth/setup", { credentials: "include" });
     if (!res.ok) return;
     const data = await res.json();
+    const setup = document.getElementById("gmailOAuthSetup");
     if (data.redirect_uri) {
       document.getElementById("gmailRedirectUri").textContent = data.redirect_uri;
-      document.getElementById("gmailConsoleLink").href = data.console_url;
-      // Keep setup hidden until connect fails with redirect_uri_mismatch
     }
+    if (data.javascript_origin) {
+      const originEl = document.getElementById("gmailJsOrigin");
+      if (originEl) originEl.textContent = data.javascript_origin;
+    }
+    if (data.console_url) {
+      document.getElementById("gmailConsoleLink").href = data.console_url;
+    }
+    if (setup) setup.style.display = "block";
   } catch (_) {}
 }
 

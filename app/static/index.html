@@ -123,12 +123,18 @@
 
               <div class="integrations-divider"></div>
               <h4 class="integrations-subhead">Gmail</h4>
-              <div id="gmailOAuthSetup" class="gmail-oauth-setup" style="display:none">
-                <strong>One-time Google setup</strong>
+              <div id="gmailOAuthSetup" class="gmail-oauth-setup">
+                <strong>Google Cloud setup (required once)</strong>
+                <p style="margin:0.4rem 0 0.6rem;font-size:0.8rem;color:var(--text-muted);line-height:1.45">
+                  If Connect with Google shows <em>redirect_uri_mismatch</em>, add these to your OAuth client (Web application), then Save and try again.
+                </p>
                 <ol>
-                  <li>Open <a id="gmailConsoleLink" href="#" target="_blank">Google Cloud Credentials</a></li>
-                  <li>Click your OAuth client (Web application)</li>
-                  <li>Add this <strong>Authorized redirect URI</strong>:</li>
+                  <li>Open <a id="gmailConsoleLink" href="#" target="_blank" rel="noopener">your OAuth client in Google Cloud</a></li>
+                  <li>Under <strong>Authorized JavaScript origins</strong>, add:</li>
+                </ol>
+                <code id="gmailJsOrigin"></code>
+                <ol start="3">
+                  <li>Under <strong>Authorized redirect URIs</strong>, add exactly:</li>
                 </ol>
                 <code id="gmailRedirectUri"></code>
                 <button class="btn btn-secondary gmail-copy-btn" onclick="copyGmailRedirectUri()">Copy redirect URI</button>
