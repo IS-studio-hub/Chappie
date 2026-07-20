@@ -1776,6 +1776,11 @@ html, body {
   padding: 1.5rem 1rem;
 }
 
+.email-design-locked[hidden],
+.email-design-unlocked[hidden] {
+  display: none !important;
+}
+
 .email-design-locked-card {
   max-width: 420px;
   text-align: center;

@@ -583,13 +583,17 @@ let emailDesignRenderTimer = null;
 let emailActiveTab = "message";
 
 function canCustomizeEmailDesign() {
-  const plan = usageInfo?.plan || "free";
-  return EMAIL_DESIGN_PLANS.has(plan);
+  const plan = String(usageInfo?.plan || "").toLowerCase().trim();
+  if (EMAIL_DESIGN_PLANS.has(plan)) return true;
+  // Fallback if only display name is present
+  const name = String(usageInfo?.plan_name || "").toLowerCase();
+  return ["small biz", "mid biz", "large biz"].some((n) => name.includes(n));
 }
 
 function switchEmailTab(tab) {
   const next = tab === "design" ? "design" : "message";
   emailActiveTab = next;
+  syncEmailDesignPlanGate();
 
   document.querySelectorAll(".email-tab").forEach((btn) => {
     const active = btn.dataset.emailTab === next;
