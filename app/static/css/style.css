@@ -840,6 +840,14 @@ html, body {
   background: var(--surface);
 }
 
+/* Keep map chrome under app modals/drawers (Leaflet default is 1000) */
+.leaflet-top,
+.leaflet-bottom {
+  position: absolute;
+  z-index: 400;
+  pointer-events: none;
+}
+
 /* Card view */
 .business-grid {
   display: grid;
