@@ -179,8 +179,15 @@ document.addEventListener("DOMContentLoaded", async () => {
   requestAnimationFrame(updateSenderInfoUi);
   document.querySelectorAll(".integrations-dropdown").forEach((el) => {
     el.addEventListener("toggle", (e) => {
-      if (e.target.open) requestAnimationFrame(updateSenderInfoUi);
+      if (e.target.open) {
+        syncSidebarPlanGates();
+        requestAnimationFrame(updateSenderInfoUi);
+      }
     });
+  });
+  setupPipelinePlanGate();
+  document.getElementById("pipelineUpgradeModal")?.addEventListener("click", (e) => {
+    if (e.target.id === "pipelineUpgradeModal") closePipelineUpgradeModal();
   });
   document.getElementById("figmaPrototypeLink").addEventListener("input", saveFigmaPrototypeLink);
   document.getElementById("emailLanguage")?.addEventListener("change", syncEmailLanguageUi);
@@ -577,17 +584,21 @@ async function fetchEmailPreview(business, language) {
 
 const EMAIL_LOGO_KEY = "chappie_email_logo_url";
 const EMAIL_TEMPLATE_KEY = "chappie_email_template_id";
-const EMAIL_DESIGN_PLANS = new Set(["small", "mid", "large"]);
+const PAID_PLANS = new Set(["small", "mid", "large"]);
+const EMAIL_DESIGN_PLANS = PAID_PLANS;
 let emailTemplatesCache = [];
 let emailDesignRenderTimer = null;
 let emailActiveTab = "message";
 
-function canCustomizeEmailDesign() {
+function isPaidPlan() {
   const plan = String(usageInfo?.plan || "").toLowerCase().trim();
-  if (EMAIL_DESIGN_PLANS.has(plan)) return true;
-  // Fallback if only display name is present
+  if (PAID_PLANS.has(plan)) return true;
   const name = String(usageInfo?.plan_name || "").toLowerCase();
   return ["small biz", "mid biz", "large biz"].some((n) => name.includes(n));
+}
+
+function canCustomizeEmailDesign() {
+  return isPaidPlan();
 }
 
 function switchEmailTab(tab) {
@@ -639,8 +650,59 @@ function syncEmailDesignPlanGate() {
 }
 
 function goUpgradeFromEmailDesign() {
+  goToUpgradePlans();
+}
+
+function goToUpgradePlans() {
   closeEmailModal();
+  closePipelineUpgradeModal();
   window.location.href = "/account#upgradePanel";
+}
+
+function syncSidebarPlanGates() {
+  const allowed = isPaidPlan();
+  const pairs = [
+    ["integrationsLockBadge", "integrationsLocked", "integrationsUnlocked"],
+    ["yourBusinessLockBadge", "yourBusinessLocked", "yourBusinessUnlocked"],
+  ];
+  for (const [badgeId, lockedId, unlockedId] of pairs) {
+    const badge = document.getElementById(badgeId);
+    const locked = document.getElementById(lockedId);
+    const unlocked = document.getElementById(unlockedId);
+    if (badge) badge.hidden = allowed;
+    if (locked) locked.hidden = allowed;
+    if (unlocked) unlocked.hidden = !allowed;
+  }
+}
+
+function openPipelineUpgradeModal() {
+  const modal = document.getElementById("pipelineUpgradeModal");
+  if (!modal) {
+    goToUpgradePlans();
+    return;
+  }
+  modal.hidden = false;
+  document.body.style.overflow = "hidden";
+}
+
+function closePipelineUpgradeModal() {
+  const modal = document.getElementById("pipelineUpgradeModal");
+  if (!modal) return;
+  modal.hidden = true;
+  const emailOpen = document.getElementById("emailModal") && !document.getElementById("emailModal").hidden;
+  if (!emailOpen) document.body.style.overflow = "";
+}
+
+function setupPipelinePlanGate() {
+  const link = document.getElementById("pipelineLink");
+  if (!link || link.dataset.planGateBound) return;
+  link.dataset.planGateBound = "1";
+  link.addEventListener("click", async (e) => {
+    if (!usageInfo) await refreshUsage();
+    if (isPaidPlan()) return;
+    e.preventDefault();
+    openPipelineUpgradeModal();
+  });
 }
 
 function getEmailTemplateId() {
@@ -1099,8 +1161,15 @@ document.getElementById("emailLogoUrl")?.addEventListener("change", onEmailLogoU
 document.getElementById("emailLogoUrl")?.addEventListener("blur", onEmailLogoUrlChange);
 
 document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape" && document.getElementById("emailModal") && !document.getElementById("emailModal").hidden) {
-    closeEmailModal();
+  if (e.key === "Escape") {
+    const pipelineModal = document.getElementById("pipelineUpgradeModal");
+    if (pipelineModal && !pipelineModal.hidden) {
+      closePipelineUpgradeModal();
+      return;
+    }
+    if (document.getElementById("emailModal") && !document.getElementById("emailModal").hidden) {
+      closeEmailModal();
+    }
   }
 });
 
@@ -1471,6 +1540,8 @@ function applyUsageToUi() {
   if (label) {
     label.textContent = `${usageInfo.plan_name} · ${usageInfo.searches_used}/${usageInfo.max_searches} searches · $${Number(usageInfo.credit_balance_cad || 0).toFixed(2)} left`;
   }
+  syncSidebarPlanGates();
+  setupPipelinePlanGate();
   const btn = document.getElementById("searchBtn");
   const btnText = document.getElementById("searchBtnText");
   if (!usageInfo.can_search) {

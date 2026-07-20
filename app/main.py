@@ -529,6 +529,9 @@ async def app_page(user=Depends(get_current_user_optional)):
 async def pipeline_page(user=Depends(get_current_user_optional)):
     if not user:
         return RedirectResponse("/?signin=1", status_code=302)
+    plan = get_plan(user.get("plan"))
+    if plan.id == "free":
+        return RedirectResponse("/account#upgradePanel", status_code=302)
     return _html("pipeline.html")
 
 
@@ -587,18 +590,31 @@ async def favorites_lookup(place_ids: list[str], user=Depends(require_user)):
     return {"favorites": await get_favorite_keys_for_places(str(user["_id"]), place_ids)}
 
 
+def _require_paid_plan(user: dict):
+    plan = get_plan(user.get("plan"))
+    if plan.id == "free":
+        raise HTTPException(
+            status_code=403,
+            detail="Pipeline requires Small Biz, Mid Biz, or Large Biz.",
+        )
+    return plan
+
+
 @app.get("/api/pipeline")
 async def pipeline_list(status: str = "", user=Depends(require_user)):
+    _require_paid_plan(user)
     return await list_deals(str(user["_id"]), status=status or None)
 
 
 @app.get("/api/pipeline/insights")
 async def pipeline_insights(user=Depends(require_user)):
+    _require_paid_plan(user)
     return await get_learning_summary(str(user["_id"]))
 
 
 @app.patch("/api/pipeline/{deal_id}")
 async def pipeline_update(deal_id: str, body: PipelineStatusRequest, user=Depends(require_user)):
+    _require_paid_plan(user)
     try:
         deal = await update_deal_status(
             str(user["_id"]),
@@ -613,6 +629,7 @@ async def pipeline_update(deal_id: str, body: PipelineStatusRequest, user=Depend
 
 @app.post("/api/pipeline/lookup")
 async def pipeline_lookup(place_ids: list[str], user=Depends(require_user)):
+    # Allow lookup for all plans so search cards can show badges without 403s
     return {"deals": await get_deals_for_places(str(user["_id"]), place_ids)}
 
 

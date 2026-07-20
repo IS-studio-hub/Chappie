@@ -161,6 +161,7 @@ html, body {
   cursor: pointer;
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 0.5rem;
   font-size: 0.75rem;
   font-weight: 600;
@@ -194,6 +195,48 @@ html, body {
 
 .integrations-body {
   margin-top: 1rem;
+}
+
+.plan-lock-badge {
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 0.12rem 0.4rem;
+  border-radius: 999px;
+  background: rgba(245, 185, 66, 0.18);
+  color: var(--warning);
+}
+
+.sidebar-plan-locked-card {
+  text-align: center;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 1.15rem 1rem;
+}
+
+.sidebar-plan-locked-card h3 {
+  font-size: 0.95rem;
+  margin-bottom: 0.45rem;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--text);
+}
+
+.sidebar-plan-locked-card p {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  line-height: 1.45;
+  margin-bottom: 0.9rem;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.sidebar-plan-locked[hidden],
+.sidebar-plan-unlocked[hidden] {
+  display: none !important;
 }
 
 .integrations-divider {

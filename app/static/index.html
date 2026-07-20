@@ -85,11 +85,20 @@
         </div>
 
         <div class="sidebar-section">
-          <details class="integrations-dropdown">
+          <details class="integrations-dropdown" id="integrationsDropdown">
             <summary class="integrations-summary">
               <span>Integrations</span>
+              <span class="plan-lock-badge" id="integrationsLockBadge" hidden>Locked</span>
             </summary>
             <div class="integrations-body">
+              <div class="sidebar-plan-locked" id="integrationsLocked" hidden>
+                <div class="sidebar-plan-locked-card">
+                  <h3>Integrations require a paid plan</h3>
+                  <p>Upgrade to Small Biz, Mid Biz, or Large Biz to connect Figma, OpenAI, and Gmail.</p>
+                  <button type="button" class="btn btn-primary" onclick="goToUpgradePlans()">Upgrade plan</button>
+                </div>
+              </div>
+              <div class="sidebar-plan-unlocked" id="integrationsUnlocked">
               <div class="field">
                 <label for="figmaToken">Figma API Token</label>
                 <div class="connect-row">
@@ -163,16 +172,26 @@
                   </div>
                 </div>
               </details>
+              </div>
             </div>
           </details>
         </div>
 
         <div class="sidebar-section">
-          <details class="integrations-dropdown your-business-dropdown">
+          <details class="integrations-dropdown your-business-dropdown" id="yourBusinessDropdown">
             <summary class="integrations-summary">
               <span>Your Business</span>
+              <span class="plan-lock-badge" id="yourBusinessLockBadge" hidden>Locked</span>
             </summary>
             <div class="integrations-body">
+              <div class="sidebar-plan-locked" id="yourBusinessLocked" hidden>
+                <div class="sidebar-plan-locked-card">
+                  <h3>Your Business requires a paid plan</h3>
+                  <p>Upgrade to Small Biz, Mid Biz, or Large Biz to add your business details and Figma prototype link for outreach.</p>
+                  <button type="button" class="btn btn-primary" onclick="goToUpgradePlans()">Upgrade plan</button>
+                </div>
+              </div>
+              <div class="sidebar-plan-unlocked" id="yourBusinessUnlocked">
               <div class="field">
                 <label for="senderBusinessName">Your Business Name</label>
                 <p style="font-size:0.8rem;color:var(--text-muted);margin:0.25rem 0 0.5rem">
@@ -197,6 +216,7 @@
               <p style="font-size:0.8rem;color:var(--text-muted);margin-top:0.25rem">
                 Included in the email only when you click Send Email.
               </p>
+              </div>
             </div>
           </details>
         </div>
@@ -530,6 +550,28 @@
       <div class="email-modal-footer">
         <button type="button" class="btn btn-secondary" onclick="closeEmailModal()">Cancel</button>
         <button type="button" class="btn btn-primary" id="emailSendConfirmBtn" onclick="confirmSendEmail()">Send email</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Pipeline upgrade modal (free plan) -->
+  <div class="email-modal-backdrop" id="pipelineUpgradeModal" hidden>
+    <div class="email-modal create-site-modal" role="dialog" aria-modal="true" aria-labelledby="pipelineUpgradeTitle">
+      <div class="email-modal-header">
+        <div>
+          <h2 id="pipelineUpgradeTitle">Pipeline is a paid feature</h2>
+          <p class="email-modal-sub">Change your plan to track outreach deals</p>
+        </div>
+        <button type="button" class="drawer-close" onclick="closePipelineUpgradeModal()" aria-label="Close">✕</button>
+      </div>
+      <div class="email-modal-body">
+        <p class="email-modal-hint" style="margin:0">
+          Free accounts can search for leads. Upgrade to Small Biz, Mid Biz, or Large Biz to open Pipeline and manage sent emails.
+        </p>
+      </div>
+      <div class="email-modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="closePipelineUpgradeModal()">Cancel</button>
+        <button type="button" class="btn btn-primary" onclick="goToUpgradePlans()">View plans</button>
       </div>
     </div>
   </div>
