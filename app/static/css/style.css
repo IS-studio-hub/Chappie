@@ -1702,8 +1702,91 @@ html, body {
   align-items: flex-start;
   justify-content: space-between;
   gap: 1rem;
-  padding: 1.1rem 1.25rem;
+  padding: 1.1rem 1.25rem 0.85rem;
+  border-bottom: none;
+}
+
+.email-modal-tabs {
+  display: flex;
+  gap: 0.35rem;
+  padding: 0 1.25rem;
   border-bottom: 1px solid var(--border);
+}
+
+.email-tab {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  padding: 0.65rem 0.85rem;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.email-tab:hover {
+  color: var(--text);
+}
+
+.email-tab.is-active {
+  color: var(--text);
+  border-bottom-color: var(--accent);
+}
+
+.email-tab.is-locked {
+  opacity: 0.85;
+}
+
+.email-tab-lock {
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 0.12rem 0.4rem;
+  border-radius: 999px;
+  background: rgba(245, 185, 66, 0.18);
+  color: var(--warning);
+}
+
+.email-tab-panel[hidden] {
+  display: none !important;
+}
+
+.email-tab-panel.is-active {
+  display: block;
+}
+
+.email-design-locked {
+  display: grid;
+  place-items: center;
+  min-height: 320px;
+  padding: 1.5rem 1rem;
+}
+
+.email-design-locked-card {
+  max-width: 420px;
+  text-align: center;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 1.4rem 1.25rem;
+}
+
+.email-design-locked-card h3 {
+  font-size: 1.05rem;
+  margin-bottom: 0.5rem;
+}
+
+.email-design-locked-card p {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  line-height: 1.45;
+  margin-bottom: 1rem;
 }
 
 .email-modal-header h2 {

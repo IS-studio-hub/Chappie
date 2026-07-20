@@ -61,7 +61,6 @@ from app.services.outreach import (
     parse_sender_info,
     get_available_email_templates,
 )
-from app.services.geocoder import geocode_address
 from app.services.places_api import (
     search_nearby_businesses,
     search_text_businesses,
@@ -973,15 +972,36 @@ async def gmail_oauth_callback(code: str = "", state: str = "", error: str = "")
         return RedirectResponse("/app?gmail_error=" + str(e)[:200])
 
 
+def _email_design_allowed(user: dict) -> bool:
+    plan = get_plan(user.get("plan"))
+    return plan.id in ("small", "mid", "large")
+
+
+def _resolve_email_design(user: dict, template_id: str = "", logo_url: str = "") -> tuple[str, str]:
+    """Paid plans can customize; free plan is forced to the default design."""
+    if _email_design_allowed(user):
+        return (template_id or "midnight_teal").strip(), (logo_url or "").strip()
+    return "midnight_teal", ""
+
+
 @app.get("/api/email/templates")
 async def email_templates(user=Depends(require_user)):
-    return {"templates": get_available_email_templates()}
+    return {
+        "templates": get_available_email_templates(),
+        "design_unlocked": _email_design_allowed(user),
+    }
 
 
 @app.post("/api/email/render")
 async def render_email_design(request: RenderEmailRequest, user=Depends(require_user)):
     if not request.body.strip():
         raise HTTPException(status_code=400, detail="Email body is required.")
+    if not _email_design_allowed(user):
+        raise HTTPException(
+            status_code=403,
+            detail="Email design customization requires Small Biz, Mid Biz, or Large Biz.",
+        )
+    template_id, logo_url = _resolve_email_design(user, request.template_id, request.logo_url)
     sender = parse_sender_info(
         request.sender_business_info,
         request.sender_business_name,
@@ -997,12 +1017,13 @@ async def render_email_design(request: RenderEmailRequest, user=Depends(require_
         studio_url=sender.get("url") or "",
         business_name=request.business_name,
         prototype_url=request.figma_prototype_link,
-        template_id=request.template_id,
-        logo_url=request.logo_url,
+        template_id=template_id,
+        logo_url=logo_url,
     )
     return {
         "html_body": html_body,
-        "template_id": request.template_id or "midnight_teal",
+        "template_id": template_id,
+        "design_unlocked": True,
     }
 
 
@@ -1026,13 +1047,16 @@ async def preview_email(request: PreviewEmailRequest, user=Depends(require_user)
 
     try:
         language = (request.language or "English").strip() or "English"
+        template_id, logo_url = _resolve_email_design(
+            user, request.template_id, request.logo_url
+        )
         subject, body, html_body = generate_send_email(
             request.business,
             sender_info=request.sender_business_info,
             figma_prototype_link=request.figma_prototype_link,
             sender_business_name=request.sender_business_name,
-            template_id=request.template_id,
-            logo_url=request.logo_url,
+            template_id=template_id,
+            logo_url=logo_url,
         )
         subject, body = await translate_outreach_email(
             subject,
@@ -1055,8 +1079,8 @@ async def preview_email(request: PreviewEmailRequest, user=Depends(require_user)
             studio_url=sender.get("url") or "",
             business_name=request.business.name,
             prototype_url=request.figma_prototype_link,
-            template_id=request.template_id,
-            logo_url=request.logo_url,
+            template_id=template_id,
+            logo_url=logo_url,
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -1069,7 +1093,8 @@ async def preview_email(request: PreviewEmailRequest, user=Depends(require_user)
         "html_body": html_body,
         "business_name": request.business.name,
         "language": language,
-        "template_id": request.template_id or "midnight_teal",
+        "template_id": template_id,
+        "design_unlocked": _email_design_allowed(user),
         "from_name": resolve_from_display_name(
             request.sender_business_info,
             user_name=user.get("name"),
@@ -1111,6 +1136,9 @@ async def send_email(request: SendEmailRequest, user=Depends(require_user)):
         )
 
     try:
+        template_id, logo_url = _resolve_email_design(
+            user, request.template_id, request.logo_url
+        )
         html_body: str | None = None
         if request.subject and request.body:
             subject = request.subject.strip()
@@ -1130,8 +1158,8 @@ async def send_email(request: SendEmailRequest, user=Depends(require_user)):
                 studio_url=sender.get("url") or "",
                 business_name=request.business.name,
                 prototype_url=request.figma_prototype_link,
-                template_id=request.template_id,
-                logo_url=request.logo_url,
+                template_id=template_id,
+                logo_url=logo_url,
             )
         else:
             subject, body, html_body = generate_send_email(
@@ -1139,8 +1167,8 @@ async def send_email(request: SendEmailRequest, user=Depends(require_user)):
                 sender_info=request.sender_business_info,
                 figma_prototype_link=request.figma_prototype_link,
                 sender_business_name=request.sender_business_name,
-                template_id=request.template_id,
-                logo_url=request.logo_url,
+                template_id=template_id,
+                logo_url=logo_url,
             )
 
         if not subject or not body:

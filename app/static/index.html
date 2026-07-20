@@ -413,8 +413,17 @@
         </div>
         <button type="button" class="drawer-close" onclick="closeEmailModal()" aria-label="Close">✕</button>
       </div>
-      <div class="email-modal-body email-modal-split">
-        <div class="email-modal-edit">
+      <div class="email-modal-tabs" role="tablist" aria-label="Email editor sections">
+        <button type="button" class="email-tab is-active" role="tab" id="emailTabMessageBtn" aria-selected="true" aria-controls="emailTabMessage" data-email-tab="message" onclick="switchEmailTab('message')">
+          Message
+        </button>
+        <button type="button" class="email-tab" role="tab" id="emailTabDesignBtn" aria-selected="false" aria-controls="emailTabDesign" data-email-tab="design" onclick="switchEmailTab('design')">
+          Design
+          <span class="email-tab-lock" id="emailDesignLockBadge" hidden>Locked</span>
+        </button>
+      </div>
+      <div class="email-modal-body">
+        <div class="email-tab-panel is-active" id="emailTabMessage" role="tabpanel" aria-labelledby="emailTabMessageBtn">
           <div class="field email-lang-row">
             <label for="emailLanguage">Language</label>
             <div class="email-lang-controls">
@@ -458,28 +467,7 @@
           </div>
           <div class="field">
             <label for="emailPreviewBody">Message</label>
-            <textarea id="emailPreviewBody" class="email-preview-body" rows="12"></textarea>
-          </div>
-          <div class="email-design-panel">
-            <div class="email-design-head">
-              <strong>Email design</strong>
-              <span>10 inbox-friendly color templates</span>
-            </div>
-            <div class="email-template-grid" id="emailTemplateGrid"></div>
-            <div class="email-logo-row">
-              <div class="field" style="margin:0;flex:1">
-                <label for="emailLogoFile">Company logo</label>
-                <input type="file" id="emailLogoFile" accept="image/png,image/jpeg,image/webp,image/svg+xml">
-              </div>
-              <button type="button" class="btn btn-secondary" id="emailLogoClearBtn" onclick="clearEmailLogo()">Remove</button>
-            </div>
-            <div class="field" style="margin-bottom:0">
-              <label for="emailLogoUrl">Or logo URL (https)</label>
-              <input type="url" id="emailLogoUrl" placeholder="https://yoursite.com/logo.png">
-            </div>
-            <div class="email-logo-preview-wrap" id="emailLogoPreviewWrap" hidden>
-              <img id="emailLogoPreviewImg" alt="Logo preview">
-            </div>
+            <textarea id="emailPreviewBody" class="email-preview-body" rows="14"></textarea>
           </div>
           <div class="email-deliverability">
             <label class="email-check">
@@ -494,12 +482,49 @@
           </div>
           <p class="email-modal-hint" id="emailPreviewHint"></p>
         </div>
-        <div class="email-modal-design-preview">
-          <div class="email-design-preview-head">
-            <strong>Design preview</strong>
-            <span id="emailTemplateLabel">Midnight Teal</span>
+
+        <div class="email-tab-panel" id="emailTabDesign" role="tabpanel" aria-labelledby="emailTabDesignBtn" hidden>
+          <div class="email-design-locked" id="emailDesignLocked" hidden>
+            <div class="email-design-locked-card">
+              <h3>Design customization is a paid feature</h3>
+              <p>Upgrade to Small Biz, Mid Biz, or Large Biz to pick color templates, add your logo, and preview the designed email.</p>
+              <button type="button" class="btn btn-primary" onclick="goUpgradeFromEmailDesign()">Upgrade plan</button>
+            </div>
           </div>
-          <iframe id="emailDesignPreviewFrame" title="Email design preview" sandbox=""></iframe>
+          <div class="email-design-unlocked" id="emailDesignUnlocked">
+            <div class="email-modal-split">
+              <div class="email-modal-edit">
+                <div class="email-design-panel">
+                  <div class="email-design-head">
+                    <strong>Email design</strong>
+                    <span>10 inbox-friendly color templates</span>
+                  </div>
+                  <div class="email-template-grid" id="emailTemplateGrid"></div>
+                  <div class="email-logo-row">
+                    <div class="field" style="margin:0;flex:1">
+                      <label for="emailLogoFile">Company logo</label>
+                      <input type="file" id="emailLogoFile" accept="image/png,image/jpeg,image/webp,image/svg+xml">
+                    </div>
+                    <button type="button" class="btn btn-secondary" id="emailLogoClearBtn" onclick="clearEmailLogo()">Remove</button>
+                  </div>
+                  <div class="field" style="margin-bottom:0">
+                    <label for="emailLogoUrl">Or logo URL (https)</label>
+                    <input type="url" id="emailLogoUrl" placeholder="https://yoursite.com/logo.png">
+                  </div>
+                  <div class="email-logo-preview-wrap" id="emailLogoPreviewWrap" hidden>
+                    <img id="emailLogoPreviewImg" alt="Logo preview">
+                  </div>
+                </div>
+              </div>
+              <div class="email-modal-design-preview">
+                <div class="email-design-preview-head">
+                  <strong>Design preview</strong>
+                  <span id="emailTemplateLabel">Midnight Teal</span>
+                </div>
+                <iframe id="emailDesignPreviewFrame" title="Email design preview" sandbox=""></iframe>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
       <div class="email-modal-footer">
