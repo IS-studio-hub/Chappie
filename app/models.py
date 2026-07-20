@@ -240,6 +240,49 @@ class FavoriteBusinessRequest(BaseModel):
     business: Business
 
 
+class CampaignGenerateRequest(BaseModel):
+    business: Business
+    goal: str = Field(
+        default="auto",
+        description="auto | awareness | leads | engagement",
+        max_length=40,
+    )
+
+
+class CampaignStaticPost(BaseModel):
+    id: int
+    title: str = ""
+    caption: str = ""
+    hashtags: list[str] = Field(default_factory=list)
+    cta: str = ""
+    image_prompt: str = ""
+    image_url: Optional[str] = None
+    image_error: Optional[str] = None
+
+
+class CampaignReel(BaseModel):
+    id: int
+    title: str = ""
+    hook: str = ""
+    script: str = ""
+    on_screen_text: list[str] = Field(default_factory=list)
+    cta: str = ""
+    duration_sec: int = 30
+
+
+class CampaignResponse(BaseModel):
+    business_name: str
+    goal: str
+    concept_title: str
+    concept_summary: str
+    hook: str = ""
+    primary_cta: str = ""
+    why_it_works: str = ""
+    brand_notes: str = ""
+    static_posts: list[CampaignStaticPost] = Field(default_factory=list)
+    reels: list[CampaignReel] = Field(default_factory=list)
+
+
 class SearchResponse(BaseModel):
     center_address: str
     center_lat: float

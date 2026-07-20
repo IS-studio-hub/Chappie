@@ -9,6 +9,7 @@ class Settings(BaseSettings):
     gmail_oauth_redirect_uri: str = "http://localhost:8000/api/gmail/oauth/callback"
     openai_api_key: str = ""
     openai_model: str = "gpt-4o-mini"
+    openai_image_model: str = "dall-e-3"
     google_service_account_json: str = ""
     google_cloud_project: str = "weebo-409921"
     studio_name: str = "IS Studio"

@@ -18,6 +18,7 @@ from app.models import (
     SignupRequest, SigninRequest, CheckoutRequest, PreviewEmailRequest,
     RenderEmailRequest,
     PipelineStatusRequest, FavoriteBusinessRequest,
+    CampaignGenerateRequest,
 )
 from app.services.outreach_tracker import (
     record_outreach_send, mark_opened, list_deals, update_deal_status,
@@ -35,6 +36,7 @@ from app.services.brand_book import (
     build_brand_book_for_business,
 )
 from app.services.openai_service import enrich_businesses_with_openai, translate_outreach_email
+from app.services.campaign import generate_marketing_campaign
 from app.services import gmail_oauth
 from app.services.user_integrations import (
     figma_status as get_user_figma_status,
@@ -1004,6 +1006,33 @@ async def openai_connect(request: OpenAIConnectRequest, user=Depends(require_use
 @app.post("/api/openai/disconnect")
 async def openai_disconnect(user=Depends(require_user)):
     return await disconnect_openai_for_user(user)
+
+
+@app.post("/api/campaign/generate")
+async def campaign_generate(request: CampaignGenerateRequest, user=Depends(require_user)):
+    plan = get_plan(user.get("plan"))
+    if plan.id != "large":
+        raise HTTPException(
+            status_code=403,
+            detail="Marketing campaigns are available on the Large Biz plan only.",
+        )
+    api_key = get_user_openai_key(user)
+    if not api_key:
+        raise HTTPException(
+            status_code=400,
+            detail="Connect OpenAI in Integrations before creating a campaign.",
+        )
+    try:
+        campaign = await generate_marketing_campaign(
+            request.business,
+            api_key=api_key,
+            goal=request.goal or "auto",
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Campaign generation failed: {str(e)[:240]}")
+    return campaign.model_dump()
 
 
 @app.get("/api/gmail/status")

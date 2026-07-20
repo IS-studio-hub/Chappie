@@ -189,6 +189,9 @@ document.addEventListener("DOMContentLoaded", async () => {
   document.getElementById("pipelineUpgradeModal")?.addEventListener("click", (e) => {
     if (e.target.id === "pipelineUpgradeModal") closePipelineUpgradeModal();
   });
+  document.getElementById("campaignModal")?.addEventListener("click", (e) => {
+    if (e.target.id === "campaignModal") closeCampaignModal();
+  });
   document.getElementById("figmaPrototypeLink").addEventListener("input", saveFigmaPrototypeLink);
   document.getElementById("emailLanguage")?.addEventListener("change", syncEmailLanguageUi);
   document.getElementById("siteLanguage")?.addEventListener("change", syncSiteLanguageUi);
@@ -1162,6 +1165,11 @@ document.getElementById("emailLogoUrl")?.addEventListener("blur", onEmailLogoUrl
 
 document.addEventListener("keydown", (e) => {
   if (e.key === "Escape") {
+    const campaignModal = document.getElementById("campaignModal");
+    if (campaignModal && !campaignModal.hidden) {
+      closeCampaignModal();
+      return;
+    }
     const pipelineModal = document.getElementById("pipelineUpgradeModal");
     if (pipelineModal && !pipelineModal.hidden) {
       closePipelineUpgradeModal();
@@ -1179,6 +1187,9 @@ function updateActionButtons() {
   });
   document.querySelectorAll(".btn-send-email").forEach((el) => {
     el.disabled = !gmailConnected;
+  });
+  document.querySelectorAll(".btn-campaign").forEach((el) => {
+    el.disabled = !openaiConnected;
   });
 }
 
@@ -1363,6 +1374,219 @@ async function createSite(index) {
   openCreateSiteModal(index, business);
 }
 
+let campaignDraft = null; // { index, business }
+let campaignResult = null;
+
+function isLargePlan() {
+  return String(usageInfo?.plan || "").toLowerCase() === "large";
+}
+
+function createCampaign(index) {
+  if (!isLargePlan()) {
+    showToast("Campaigns are available on Large Biz only.");
+    return;
+  }
+  if (!openaiConnected) {
+    showToast("Connect OpenAI in Integrations first.");
+    return;
+  }
+  const business = filteredBusinesses[index];
+  if (!business) return;
+  openCampaignModal(index, business);
+}
+
+function openCampaignModal(index, business) {
+  campaignDraft = { index, business };
+  campaignResult = null;
+  const modal = document.getElementById("campaignModal");
+  const sub = document.getElementById("campaignModalSub");
+  if (sub) sub.textContent = `Campaign for ${business.name}`;
+  document.getElementById("campaignSetup").hidden = false;
+  document.getElementById("campaignLoading").hidden = true;
+  document.getElementById("campaignResult").hidden = true;
+  document.getElementById("campaignResult").innerHTML = "";
+  const genBtn = document.getElementById("campaignGenerateBtn");
+  if (genBtn) {
+    genBtn.hidden = false;
+    genBtn.disabled = false;
+    genBtn.textContent = "Generate campaign";
+  }
+  const bar = document.getElementById("campaignProgressBar");
+  if (bar) bar.style.width = "18%";
+  if (modal) {
+    modal.hidden = false;
+    document.body.style.overflow = "hidden";
+  }
+}
+
+function closeCampaignModal() {
+  const modal = document.getElementById("campaignModal");
+  if (modal) modal.hidden = true;
+  campaignDraft = null;
+  const emailOpen = document.getElementById("emailModal") && !document.getElementById("emailModal").hidden;
+  const pipelineOpen = document.getElementById("pipelineUpgradeModal") && !document.getElementById("pipelineUpgradeModal").hidden;
+  if (!emailOpen && !pipelineOpen) document.body.style.overflow = "";
+}
+
+function copyCampaignText(text) {
+  const value = text || "";
+  if (!value) return;
+  navigator.clipboard?.writeText(value).then(
+    () => showToast("Copied"),
+    () => showToast("Could not copy"),
+  );
+}
+
+function renderCampaignResult(data) {
+  const goalLabel = ({
+    awareness: "Awareness",
+    leads: "Leads",
+    engagement: "Engagement",
+  })[data.goal] || data.goal || "Campaign";
+
+    const postsHtml = (data.static_posts || []).map((p) => {
+    const tags = (p.hashtags || []).map((t) => `#${esc(String(t).replace(/^#/, ""))}`).join(" ");
+    const img = p.image_url
+      ? `<a href="${esc(p.image_url)}" target="_blank" rel="noopener"><img class="campaign-post-image" src="${esc(p.image_url)}" alt="Post ${p.id} visual"></a>`
+      : `<div class="campaign-post-image-missing">${esc(p.image_error || "Image unavailable")}</div>`;
+    const copyPayload = [p.caption, tags].filter(Boolean).join("\n\n");
+    return `
+      <article class="campaign-post">
+        <h4>Post ${p.id}: ${esc(p.title || "")}</h4>
+        <div class="campaign-post-grid">
+          ${img}
+          <div>
+            <div class="campaign-caption">${esc(p.caption || "")}</div>
+            ${p.cta ? `<div><strong>CTA:</strong> ${esc(p.cta)}</div>` : ""}
+            ${tags ? `<div class="campaign-tags">${tags}</div>` : ""}
+            <button type="button" class="btn btn-secondary campaign-copy-btn" data-copy="${esc(encodeURIComponent(copyPayload))}" onclick="copyCampaignText(decodeURIComponent(this.dataset.copy || ''))">Copy caption</button>
+          </div>
+        </div>
+      </article>
+    `;
+  }).join("");
+
+  const reelsHtml = (data.reels || []).map((r) => {
+    const overlays = (r.on_screen_text || []).map((t) => esc(t)).join(" · ");
+    const copyPayload = [
+      r.hook ? `Hook: ${r.hook}` : "",
+      r.script || "",
+      overlays ? `On-screen: ${(r.on_screen_text || []).join(" · ")}` : "",
+      r.cta ? `CTA: ${r.cta}` : "",
+    ].filter(Boolean).join("\n\n");
+    return `
+      <article class="campaign-reel">
+        <h4>Reel ${r.id}: ${esc(r.title || "")} · ${Number(r.duration_sec || 30)}s</h4>
+        ${r.hook ? `<p><strong>Hook:</strong> ${esc(r.hook)}</p>` : ""}
+        <div class="campaign-caption">${esc(r.script || "")}</div>
+        ${overlays ? `<p><strong>On-screen:</strong> ${overlays}</p>` : ""}
+        ${r.cta ? `<p><strong>CTA:</strong> ${esc(r.cta)}</p>` : ""}
+        <button type="button" class="btn btn-secondary campaign-copy-btn" data-copy="${esc(encodeURIComponent(copyPayload))}" onclick="copyCampaignText(decodeURIComponent(this.dataset.copy || ''))">Copy reel script</button>
+      </article>
+    `;
+  }).join("");
+
+  return `
+    <div class="campaign-concept">
+      <div class="campaign-meta">
+        <span class="campaign-pill">${esc(goalLabel)}</span>
+        <span class="campaign-pill">Large Biz</span>
+      </div>
+      <h3>${esc(data.concept_title || "Campaign")}</h3>
+      <p>${esc(data.concept_summary || "")}</p>
+      ${data.hook ? `<p><strong>Hook:</strong> ${esc(data.hook)}</p>` : ""}
+      ${data.primary_cta ? `<p><strong>Primary CTA:</strong> ${esc(data.primary_cta)}</p>` : ""}
+      ${data.why_it_works ? `<p><strong>Why it works:</strong> ${esc(data.why_it_works)}</p>` : ""}
+      ${data.brand_notes ? `<p><strong>Brand:</strong> ${esc(data.brand_notes)}</p>` : ""}
+    </div>
+    <div class="campaign-section-title">5 static posts · images without text</div>
+    ${postsHtml || "<p class='muted'>No posts generated.</p>"}
+    <div class="campaign-section-title">5 reels · scripts</div>
+    ${reelsHtml || "<p class='muted'>No reels generated.</p>"}
+  `;
+}
+
+async function confirmGenerateCampaign() {
+  if (!campaignDraft?.business) return;
+  if (!isLargePlan()) {
+    showToast("Campaigns are available on Large Biz only.");
+    return;
+  }
+  if (!openaiConnected) {
+    showToast("Connect OpenAI in Integrations first.");
+    return;
+  }
+
+  const goal = document.getElementById("campaignGoal")?.value || "auto";
+  const setup = document.getElementById("campaignSetup");
+  const loading = document.getElementById("campaignLoading");
+  const resultEl = document.getElementById("campaignResult");
+  const genBtn = document.getElementById("campaignGenerateBtn");
+  const msg = document.getElementById("campaignLoadingMsg");
+  const bar = document.getElementById("campaignProgressBar");
+
+  if (setup) setup.hidden = true;
+  if (loading) loading.hidden = false;
+  if (resultEl) {
+    resultEl.hidden = true;
+    resultEl.innerHTML = "";
+  }
+  if (genBtn) {
+    genBtn.disabled = true;
+    genBtn.textContent = "Generating…";
+  }
+  if (msg) msg.textContent = "Writing campaign concept from brand + business data…";
+  if (bar) bar.style.width = "28%";
+
+  const progressTimer = setInterval(() => {
+    if (!bar) return;
+    const current = parseFloat(bar.style.width) || 28;
+    if (current < 88) bar.style.width = `${current + 4}%`;
+  }, 1200);
+
+  try {
+    // Drop heavy brand SVG from payload; server rebuilds brand book if needed
+    const { brand_book, ...rest } = campaignDraft.business || {};
+    const businessPayload = brand_book
+      ? { ...rest, brand_book: { ...brand_book, logo_svg: undefined } }
+      : rest;
+
+    if (msg) msg.textContent = "Creating 5 post captions, 5 reel scripts, and 5 text-free images…";
+    const res = await fetch("/api/campaign/generate", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ business: businessPayload, goal }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(typeof data.detail === "string" ? data.detail : "Campaign generation failed");
+    }
+    campaignResult = data;
+    if (bar) bar.style.width = "100%";
+    if (loading) loading.hidden = true;
+    if (resultEl) {
+      resultEl.hidden = false;
+      resultEl.innerHTML = renderCampaignResult(data);
+    }
+    if (genBtn) {
+      genBtn.hidden = true;
+    }
+    showToast("Campaign ready.");
+  } catch (e) {
+    if (loading) loading.hidden = true;
+    if (setup) setup.hidden = false;
+    if (genBtn) {
+      genBtn.disabled = false;
+      genBtn.textContent = "Generate campaign";
+      genBtn.hidden = false;
+    }
+    showToast(e.message || "Campaign generation failed");
+  } finally {
+    clearInterval(progressTimer);
+  }
+}
+
 let createSiteDraft = null; // { index, business }
 
 function getSelectedSiteLanguage() {
@@ -1542,6 +1766,7 @@ function applyUsageToUi() {
   }
   syncSidebarPlanGates();
   setupPipelinePlanGate();
+  if (allBusinesses.length) renderView();
   const btn = document.getElementById("searchBtn");
   const btnText = document.getElementById("searchBtnText");
   if (!usageInfo.can_search) {
@@ -2200,6 +2425,15 @@ function renderCard(b, index) {
           ${figmaConnected ? "" : "disabled"}
           onclick="event.stopPropagation(); createSite(${index})"
         >Create Site</button>
+        ${usageInfo?.plan === "large" ? `
+        <button
+          class="btn-campaign"
+          data-campaign="${index}"
+          ${openaiConnected ? "" : "disabled"}
+          onclick="event.stopPropagation(); createCampaign(${index})"
+          title="${openaiConnected ? "Generate a social campaign" : "Connect OpenAI in Integrations first"}"
+        >Create Campaign</button>
+        ` : ""}
         ${emails.length ? `
         <button
           class="btn-send-email"

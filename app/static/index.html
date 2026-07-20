@@ -424,6 +424,44 @@
     </div>
   </div>
 
+  <!-- Marketing campaign modal (Large plan) -->
+  <div class="email-modal-backdrop" id="campaignModal" hidden>
+    <div class="email-modal email-modal-wide campaign-modal" role="dialog" aria-modal="true" aria-labelledby="campaignModalTitle">
+      <div class="email-modal-header">
+        <div>
+          <h2 id="campaignModalTitle">Marketing campaign</h2>
+          <p class="email-modal-sub" id="campaignModalSub">Large Biz · brand-based social campaign</p>
+        </div>
+        <button type="button" class="drawer-close" onclick="closeCampaignModal()" aria-label="Close">✕</button>
+      </div>
+      <div class="email-modal-body" id="campaignModalBody">
+        <div id="campaignSetup">
+          <div class="field">
+            <label for="campaignGoal">Campaign goal</label>
+            <select id="campaignGoal" class="email-language-select">
+              <option value="auto">Auto (based on business data)</option>
+              <option value="awareness">Awareness</option>
+              <option value="leads">Leads / inquiries</option>
+              <option value="engagement">Engagement</option>
+            </select>
+            <p class="email-lang-hint">Uses the business details and brand book. Needs OpenAI connected. Creates 5 static posts (with text-free images) and 5 reel scripts.</p>
+          </div>
+        </div>
+        <div id="campaignLoading" hidden>
+          <p class="campaign-loading-msg" id="campaignLoadingMsg">Creating campaign concept…</p>
+          <div class="progress-bar-bg" style="margin-top:0.75rem">
+            <div class="progress-bar" id="campaignProgressBar" style="width:18%"></div>
+          </div>
+        </div>
+        <div id="campaignResult" hidden></div>
+      </div>
+      <div class="email-modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="closeCampaignModal()">Close</button>
+        <button type="button" class="btn btn-primary" id="campaignGenerateBtn" onclick="confirmGenerateCampaign()">Generate campaign</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Email preview / edit modal -->
   <div class="email-modal-backdrop" id="emailModal" hidden>
     <div class="email-modal email-modal-wide" role="dialog" aria-modal="true" aria-labelledby="emailModalTitle">
