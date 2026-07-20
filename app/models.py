@@ -112,6 +112,10 @@ class Business(BaseModel):
     social_profiles: dict[str, str] = Field(default_factory=dict)
     latitude: Optional[float] = None
     longitude: Optional[float] = None
+    distance_km: Optional[float] = Field(
+        default=None,
+        description="Distance from search center in kilometers",
+    )
     contact_email: Optional[str] = None
     contact_emails: list[str] = Field(default_factory=list)
     email_source: Optional[str] = None

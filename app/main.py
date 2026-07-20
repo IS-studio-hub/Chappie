@@ -68,6 +68,9 @@ from app.services.places_api import (
     candidate_pool_size,
     PLACE_TYPES_SMB,
     PLACE_TYPES_LARGE,
+    annotate_distance_from_center,
+    sort_businesses_by_distance,
+    search_radius_rings,
 )
 from app.services.maps_scraper import enrich_businesses
 from app.services.outreach_pipeline import find_emails_for_businesses
@@ -159,25 +162,27 @@ async def _run_search(
 
         if is_large:
             job.message = (
-                f"Large plan: collecting at least {target} businesses "
-                f"(emails preferred; pool up to {pool_target})..."
+                f"Large plan: collecting closest businesses first "
+                f"(need {target}; pool up to {pool_target})..."
             )
         else:
             job.message = (
-                f"Searching for up to {pool_target} no-website candidates "
-                f"(filling {target} with contact email)..."
+                f"Searching closest no-website candidates first "
+                f"(filling {target} with contact email; pool up to {pool_target})..."
                 if request.find_emails
-                else f"Searching for up to {target} businesses without websites..."
+                else f"Searching closest businesses without websites (up to {target})..."
             )
 
         async def _fetch_candidates(
             max_n: int,
             exclude: set[str] | None = None,
+            *,
+            radius_km: float | None = None,
         ) -> list[Business]:
             return await search_nearby_businesses(
                 lat,
                 lng,
-                request.radius_km,
+                radius_km if radius_km is not None else request.radius_km,
                 progress_callback=on_progress,
                 max_results=max_n,
                 exclude_ids=exclude,
@@ -185,6 +190,11 @@ async def _run_search(
                 place_types=place_types,
                 per_type_limit=per_type_limit,
                 exhaust_types=exhaust_types,
+            )
+
+        def _with_distances(items: list[Business]) -> list[Business]:
+            return sort_businesses_by_distance(
+                annotate_distance_from_center(items, lat, lng)
             )
 
         def _dedupe_extend(base: list[Business], extra: list[Business]) -> list[Business]:
@@ -201,18 +211,62 @@ async def _run_search(
                 out.append(b)
             return out
 
+        async def _collect_closest_first(min_count: int) -> list[Business]:
+            """Search near the center first, then expand rings until quota or max radius."""
+            pool: list[Business] = []
+            rings = search_radius_rings(request.radius_km)
+            need = max(1, int(min_count))
+
+            for ring_km in rings:
+                if len(pool) >= need:
+                    break
+                exclude = {b.place_id for b in pool if b.place_id}
+                remaining = need - len(pool)
+                job.message = (
+                    f"Searching closest businesses within {ring_km:g} km "
+                    f"({len(pool)}/{need} candidates)..."
+                )
+                more = await _fetch_candidates(
+                    max(remaining * 2, min(80, need)),
+                    exclude,
+                    radius_km=ring_km,
+                )
+                if is_large and (not more or len(more) < max(8, remaining // 2)):
+                    text_extra = await search_text_businesses(
+                        lat,
+                        lng,
+                        ring_km,
+                        area_label=formatted,
+                        require_no_website=False,
+                        exclude_ids=exclude,
+                        max_results=min(100, need),
+                        progress_callback=on_progress,
+                    )
+                    more = _dedupe_extend(more or [], text_extra)
+
+                before = len(pool)
+                pool = _with_distances(_dedupe_extend(pool, more or []))
+                if len(pool) == before and ring_km >= request.radius_km - 0.05:
+                    break
+
+            return _with_distances(pool)
+
         async def _ensure_candidate_floor(min_count: int) -> list[Business]:
-            """Keep pulling Nearby + Text Search until we have min_count candidates."""
-            pool = await _fetch_candidates(max(pool_target, min_count * 3))
+            """Keep expanding outward until we have min_count closest candidates."""
+            pool = await _collect_closest_first(max(pool_target, min_count))
             rounds = 0
             while len(pool) < min_count and rounds < max_refill_rounds:
                 rounds += 1
                 exclude = {b.place_id for b in pool if b.place_id}
                 job.message = (
                     f"Need {min_count - len(pool)} more candidates "
-                    f"({len(pool)}/{min_count}) — expanding search..."
+                    f"({len(pool)}/{min_count}) — expanding search area..."
                 )
-                more = await _fetch_candidates(min(120, min_count * 2), exclude)
+                more = await _fetch_candidates(
+                    min(120, min_count * 2),
+                    exclude,
+                    radius_km=request.radius_km,
+                )
                 if is_large:
                     text_extra = await search_text_businesses(
                         lat,
@@ -226,16 +280,16 @@ async def _run_search(
                     )
                     more = _dedupe_extend(more or [], text_extra)
                 before = len(pool)
-                pool = _dedupe_extend(pool, more or [])
+                pool = _with_distances(_dedupe_extend(pool, more or []))
                 if len(pool) == before:
                     break
             return pool
 
-        # Large plan: guarantee a large candidate floor before email work
+        # All plans: start near the center, then grow the search radius
         if is_large:
             candidates = await _ensure_candidate_floor(max(target, 50))
         else:
-            candidates = await _fetch_candidates(pool_target)
+            candidates = await _collect_closest_first(pool_target)
 
         kept_with_email: list[Business] = []
         scanned = 0
@@ -330,7 +384,7 @@ async def _run_search(
                 if not more:
                     break
                 before = len(candidates)
-                candidates = _dedupe_extend(candidates, more)
+                candidates = _with_distances(_dedupe_extend(candidates, more))
                 if len(candidates) == before:
                     if is_large and refill_rounds <= 3:
                         text_only = await search_text_businesses(
@@ -343,15 +397,18 @@ async def _run_search(
                             max_results=100,
                             progress_callback=on_progress,
                         )
-                        candidates = _dedupe_extend(candidates, text_only)
+                        candidates = _with_distances(
+                            _dedupe_extend(candidates, text_only)
+                        )
                         if len(candidates) == before:
                             break
                     else:
                         break
                 await _process_email_batches()
 
-            # Prefer email leads, then pad to target from remaining candidates.
-            # Large plan MUST return `target` results whenever enough candidates exist.
+            # Prefer closest email leads, then pad with next-closest candidates.
+            candidates = _with_distances(candidates)
+            kept_with_email = _with_distances(kept_with_email)
             email_ids = {b.place_id for b in kept_with_email if b.place_id}
             padded: list[Business] = list(kept_with_email[:target])
             if len(padded) < target:
@@ -381,7 +438,9 @@ async def _run_search(
                     progress_callback=on_progress,
                 )
                 nearby_more = await _fetch_candidates(target * 2, exclude)
-                candidates = _dedupe_extend(candidates, _dedupe_extend(more, nearby_more))
+                candidates = _with_distances(
+                    _dedupe_extend(candidates, _dedupe_extend(more, nearby_more))
+                )
                 for c in candidates:
                     if len(padded) >= target:
                         break
@@ -389,7 +448,7 @@ async def _run_search(
                         continue
                     padded.append(c)
 
-            businesses = padded[:target]
+            businesses = _with_distances(padded[:target])
 
             # Enrich any padded (non-email) rows that skipped enrich during email pass
             if request.enrich_details and businesses:
@@ -421,7 +480,7 @@ async def _run_search(
             # No email pass — still honor large minimum by expanding candidates
             if is_large and len(candidates) < target:
                 candidates = await _ensure_candidate_floor(target)
-            businesses = candidates[:target]
+            businesses = _with_distances(candidates)[:target]
             if request.enrich_details and businesses:
                 job.message = "Enriching with Google Maps details..."
                 businesses = await enrich_businesses(
@@ -458,6 +517,8 @@ async def _run_search(
                 target_categories=request.target_categories,
                 insights=insights,
             )
+            # Keep closest-to-center first for all plans (quality scores still on each card)
+            businesses = _with_distances(businesses)
 
         if businesses:
             job.message = "Building brand books (colors, logo, tone, imagery)..."
@@ -466,6 +527,7 @@ async def _run_search(
                 api_key=openai_api_key,
                 progress_callback=on_progress,
             )
+            businesses = _with_distances(businesses)
 
         job.result = SearchResponse(
             center_address=formatted,

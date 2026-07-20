@@ -1751,10 +1751,10 @@ function renderResults(result) {
     </div>
   `;
 
-  // Default sort by website opportunity (highest first)
+  // Default sort: closest to search center first
   const sortSelect = document.getElementById("sortSelect");
   if (sortSelect && !sortSelect.dataset.scoreDefaulted) {
-    sortSelect.value = "opportunity";
+    sortSelect.value = "distance";
     sortSelect.dataset.scoreDefaulted = "1";
   }
   applyFilter();
@@ -2017,13 +2017,22 @@ function applyFilter() {
 
   filteredBusinesses.sort((a, b) => {
     switch (sort) {
+      case "distance": {
+        const da = a.distance_km == null ? Number.POSITIVE_INFINITY : a.distance_km;
+        const db = b.distance_km == null ? Number.POSITIVE_INFINITY : b.distance_km;
+        return da - db;
+      }
       case "opportunity": return (b.website_opportunity_score || 0) - (a.website_opportunity_score || 0);
       case "quality": return (b.lead_quality_score || 0) - (a.lead_quality_score || 0);
       case "score": return (b.no_website_score || 0) - (a.no_website_score || 0);
       case "rating": return (b.rating || 0) - (a.rating || 0);
       case "reviews": return (b.review_count || 0) - (a.review_count || 0);
       case "name": return (a.name || "").localeCompare(b.name || "");
-      default: return (b.website_opportunity_score || 0) - (a.website_opportunity_score || 0);
+      default: {
+        const da = a.distance_km == null ? Number.POSITIVE_INFINITY : a.distance_km;
+        const db = b.distance_km == null ? Number.POSITIVE_INFINITY : b.distance_km;
+        return da - db;
+      }
     }
   });
 
@@ -2036,7 +2045,7 @@ function applyFilter() {
 function updateResultCount() {
   const hot = filteredBusinesses.filter((b) => (b.website_opportunity_score || 0) >= 75).length;
   const sort = document.getElementById("sortSelect")?.value;
-  const sortedNote = sort === "opportunity" || !sort ? " · best website opportunities first" : "";
+  const sortedNote = sort === "distance" || !sort ? " · closest to center first" : "";
   const total = allBusinesses.length;
   const showing = filteredBusinesses.length;
   const filteredNote = showing !== total ? ` of <span>${total}</span>` : "";
@@ -2171,6 +2180,7 @@ function renderCard(b, index) {
         ${pipelineBadge(b)}
       </div>
       <div class="card-details">
+        ${b.distance_km != null ? `<div class="card-detail"><span class="d-icon">📏</span>${Number(b.distance_km).toFixed(1)} km from center</div>` : ""}
         ${b.address ? `<div class="card-detail"><span class="d-icon">📍</span>${esc(b.address)}</div>` : ""}
         ${emails.length
           ? emails.map((e) => `<div class="card-detail"><span class="d-icon">✉️</span><a href="mailto:${esc(e)}" style="color:var(--accent)" onclick="event.stopPropagation()">${esc(e)}</a></div>`).join("")

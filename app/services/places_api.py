@@ -1,4 +1,5 @@
 import asyncio
+import math
 import time
 
 import httpx
@@ -85,6 +86,72 @@ MAX_CANDIDATE_POOL = 400
 CACHE_TTL_SECONDS = 6 * 3600
 
 _nearby_cache: dict[str, tuple[float, dict]] = {}
+
+
+def haversine_km(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
+    """Great-circle distance between two WGS84 points, in kilometers."""
+    radius = 6371.0
+    p1, p2 = math.radians(lat1), math.radians(lat2)
+    dphi = math.radians(lat2 - lat1)
+    dlmb = math.radians(lng2 - lng1)
+    a = math.sin(dphi / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dlmb / 2) ** 2
+    return 2 * radius * math.asin(min(1.0, math.sqrt(a)))
+
+
+def annotate_distance_from_center(
+    businesses: list[Business],
+    center_lat: float,
+    center_lng: float,
+) -> list[Business]:
+    out: list[Business] = []
+    for biz in businesses:
+        data = biz.model_dump()
+        if biz.latitude is not None and biz.longitude is not None:
+            data["distance_km"] = round(
+                haversine_km(center_lat, center_lng, biz.latitude, biz.longitude),
+                3,
+            )
+        else:
+            data["distance_km"] = None
+        out.append(Business(**data))
+    return out
+
+
+def sort_businesses_by_distance(businesses: list[Business]) -> list[Business]:
+    """Closest to search center first; unknown distance last."""
+    return sorted(
+        businesses,
+        key=lambda b: (
+            b.distance_km is None,
+            b.distance_km if b.distance_km is not None else 1e9,
+            -(b.review_count or 0),
+            (b.name or "").lower(),
+        ),
+    )
+
+
+def search_radius_rings(max_km: float) -> list[float]:
+    """Growing search radii from near the center out to ``max_km``.
+
+    Example for 10 km: 1 → 2 → 3.5 → 5 → 7.5 → 10.
+    """
+    max_km = max(0.5, float(max_km))
+    if max_km <= 1.0:
+        return [round(max_km, 2)]
+
+    milestones = [1.0, 2.0, 3.5, 5.0, 7.5, 10.0, 15.0, 20.0, 30.0, 40.0, 50.0]
+    rings: list[float] = []
+    for r in milestones:
+        if r < max_km - 0.05:
+            rings.append(r)
+    rings.append(max_km)
+
+    out: list[float] = []
+    for r in rings:
+        rr = round(r, 2)
+        if not out or abs(out[-1] - rr) > 0.05:
+            out.append(rr)
+    return out
 
 
 def _headers() -> dict:
