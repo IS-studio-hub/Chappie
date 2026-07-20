@@ -1795,39 +1795,33 @@ function renderCard(b, index) {
   const emails = getBusinessEmails(b);
   return `
     <div class="business-card ${selectedIndex === index ? "selected" : ""}" onclick="openDrawer(${index})">
-      <div class="card-top">
-        <div class="card-top-main">
-          <div class="card-name">${esc(b.name)}</div>
-          <div class="card-score-tags">
-            ${websiteOpportunityBadge(b)}
-            ${leadQualityBadge(b)}
-            ${noWebsiteBadge(b)}
-          </div>
-          ${brandBookBadge(b)}
-          ${pipelineBadge(b)}
-          ${noWebsiteMeta(b)}
-        </div>
-        <div class="card-top-right">
+      ${b.category ? `<div class="card-category">${esc(b.category)}</div>` : ""}
+      <div class="card-header-row">
+        <div class="card-name">${esc(b.name)}</div>
+        <div class="card-header-meta">
+          ${b.rating ? `<div class="card-rating">★ ${b.rating} <span>(${b.review_count || 0})</span></div>` : ""}
           ${favoriteButton(b, index)}
-          ${b.rating ? `<div class="card-rating">★ ${b.rating} <span style="color:var(--text-muted);font-weight:400">(${b.review_count || 0})</span></div>` : ""}
         </div>
       </div>
-      ${b.category ? `<div class="card-category">${esc(b.category)}</div>` : ""}
+      <div class="card-score-tags">
+        ${websiteOpportunityBadge(b)}
+        ${leadQualityBadge(b)}
+        ${noWebsiteBadge(b)}
+        ${brandBookBadge(b)}
+        ${pipelineBadge(b)}
+      </div>
       <div class="card-details">
         ${b.address ? `<div class="card-detail"><span class="d-icon">📍</span>${esc(b.address)}</div>` : ""}
         ${emails.length
           ? emails.map((e) => `<div class="card-detail"><span class="d-icon">✉️</span><a href="mailto:${esc(e)}" style="color:var(--accent)" onclick="event.stopPropagation()">${esc(e)}</a></div>`).join("")
-          : `<div class="card-detail" style="color:var(--text-muted)"><span class="d-icon">✉️</span>no email</div>`}
+          : `<div class="card-detail card-detail-muted"><span class="d-icon">✉️</span>no email</div>`}
         ${b.phone ? `<div class="card-detail"><span class="d-icon">📞</span>${esc(b.phone)}</div>` : ""}
-        ${b.website_url
-          ? `<div class="card-detail"><span class="d-icon">🌐</span><a href="${esc(b.website_url)}" target="_blank" rel="noopener" style="color:var(--accent)" onclick="event.stopPropagation()">Website</a></div>`
-          : ""}
-        ${b.hours ? `<div class="card-detail"><span class="d-icon">🕐</span>${esc((b.hours || "").split(";")[0])}</div>` : ""}
       </div>
       ${renderSocialIcons(b.social_profiles, true)}
       <div class="card-footer">
-        <div class="card-tags"></div>
-        ${b.google_maps_url ? `<a class="card-link" href="${esc(b.google_maps_url)}" target="_blank" onclick="event.stopPropagation()">Maps →</a>` : ""}
+        ${b.google_maps_url
+          ? `<a class="card-link" href="${esc(b.google_maps_url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">Maps</a>`
+          : `<span></span>`}
       </div>
       <div class="card-actions">
         <button
