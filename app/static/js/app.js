@@ -1729,16 +1729,16 @@ function noWebsiteBadge(b) {
     low: "badge-score-low",
     fail: "badge-score-fail",
   }[tier] || "badge-no-site";
-  if (score == null) {
-    return `<span class="badge badge-no-site">No Website</span>`;
-  }
-  return `<span class="badge ${cls}" title="${esc((b.no_website_signals || []).join(" · "))}">${esc(label)} ${score}</span>`;
+  const signals = (b.no_website_signals || []).join(" · ");
+  const title = score != null
+    ? `${label}: ${score}/100${signals ? ` · ${signals}` : ""}`
+    : (signals || label);
+  return `<span class="badge ${cls}" title="${esc(title)}">${esc(label)}</span>`;
 }
 
 function websiteOpportunityBadge(b) {
   const score = b.website_opportunity_score;
   if (score == null) return "";
-  const label = b.website_opportunity_label || "Opp";
   const tier = b.website_opportunity_tier || "cool";
   const cls = {
     hot: "badge-opp-hot",
@@ -1746,9 +1746,9 @@ function websiteOpportunityBadge(b) {
     cool: "badge-opp-cool",
     low: "badge-opp-low",
   }[tier] || "badge-opp-cool";
-  const title = (b.website_opportunity_breakdown || b.website_opportunity_signals || []).join(" · ")
-    || "Website opportunity score";
-  return `<span class="badge ${cls}" title="${esc(title)}">Opp ${score}</span>`;
+  const detail = (b.website_opportunity_breakdown || b.website_opportunity_signals || []).join(" · ");
+  const title = detail || `Website opportunity: ${score}/100`;
+  return `<span class="badge ${cls}" title="${esc(title)}">Opp</span>`;
 }
 
 function leadQualityBadge(b) {
@@ -1762,9 +1762,10 @@ function leadQualityBadge(b) {
     fair: "badge-quality-fair",
     weak: "badge-quality-weak",
   }[tier] || "badge-quality-fair";
-  const title = (b.lead_quality_signals || []).join(" · ") || "Lead quality";
-  const boost = b.learning_boost ? ` +${b.learning_boost}` : "";
-  return `<span class="badge ${cls}" title="${esc(title)}">${esc(label)} ${score}${boost}</span>`;
+  const signals = (b.lead_quality_signals || []).join(" · ");
+  const boost = b.learning_boost ? ` · +${b.learning_boost} learning` : "";
+  const title = `${label}: ${score}/100${boost}${signals ? ` · ${signals}` : ""}`;
+  return `<span class="badge ${cls}" title="${esc(title)}">${esc(label)}</span>`;
 }
 
 function brandBookBadge(b) {
@@ -1800,10 +1801,12 @@ function renderCard(b, index) {
             <div class="card-name">${esc(b.name)}</div>
             ${favoriteButton(b, index)}
           </div>
-          ${websiteOpportunityBadge(b)}
-          ${leadQualityBadge(b)}
+          <div class="card-score-tags">
+            ${websiteOpportunityBadge(b)}
+            ${leadQualityBadge(b)}
+            ${noWebsiteBadge(b)}
+          </div>
           ${brandBookBadge(b)}
-          ${noWebsiteBadge(b)}
           ${pipelineBadge(b)}
           ${noWebsiteMeta(b)}
         </div>

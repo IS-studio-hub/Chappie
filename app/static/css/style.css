@@ -889,6 +889,14 @@ html, body {
   gap: 0.5rem;
 }
 
+.card-score-tags {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  margin-top: 0.4rem;
+}
+
 .btn-favorite {
   flex-shrink: 0;
   width: 2rem;
