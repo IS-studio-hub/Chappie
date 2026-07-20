@@ -16,6 +16,7 @@ from app.models import (
     FigmaConnectRequest, FigmaCreateSiteRequest,
     GmailConnectRequest, SendEmailRequest, OpenAIConnectRequest,
     SignupRequest, SigninRequest, CheckoutRequest, PreviewEmailRequest,
+    RenderEmailRequest,
     PipelineStatusRequest, FavoriteBusinessRequest,
 )
 from app.services.outreach_tracker import (
@@ -58,6 +59,7 @@ from app.services.outreach import (
     append_compliance_footer,
     wrap_outreach_plain_as_html,
     parse_sender_info,
+    get_available_email_templates,
 )
 from app.services.geocoder import geocode_address
 from app.services.places_api import (
@@ -971,6 +973,39 @@ async def gmail_oauth_callback(code: str = "", state: str = "", error: str = "")
         return RedirectResponse("/app?gmail_error=" + str(e)[:200])
 
 
+@app.get("/api/email/templates")
+async def email_templates(user=Depends(require_user)):
+    return {"templates": get_available_email_templates()}
+
+
+@app.post("/api/email/render")
+async def render_email_design(request: RenderEmailRequest, user=Depends(require_user)):
+    if not request.body.strip():
+        raise HTTPException(status_code=400, detail="Email body is required.")
+    sender = parse_sender_info(
+        request.sender_business_info,
+        request.sender_business_name,
+    )
+    html_body = wrap_outreach_plain_as_html(
+        request.body,
+        studio_name=sender.get("name") or resolve_from_display_name(
+            request.sender_business_info,
+            user_name=user.get("name"),
+            business_name=request.sender_business_name,
+        ),
+        studio_email=sender.get("email") or "",
+        studio_url=sender.get("url") or "",
+        business_name=request.business_name,
+        prototype_url=request.figma_prototype_link,
+        template_id=request.template_id,
+        logo_url=request.logo_url,
+    )
+    return {
+        "html_body": html_body,
+        "template_id": request.template_id or "midnight_teal",
+    }
+
+
 @app.post("/api/email/preview")
 async def preview_email(request: PreviewEmailRequest, user=Depends(require_user)):
     recipients = merge_emails(request.business.contact_emails, request.business.contact_email)
@@ -996,6 +1031,8 @@ async def preview_email(request: PreviewEmailRequest, user=Depends(require_user)
             sender_info=request.sender_business_info,
             figma_prototype_link=request.figma_prototype_link,
             sender_business_name=request.sender_business_name,
+            template_id=request.template_id,
+            logo_url=request.logo_url,
         )
         subject, body = await translate_outreach_email(
             subject,
@@ -1003,24 +1040,24 @@ async def preview_email(request: PreviewEmailRequest, user=Depends(require_user)
             language,
             api_key=get_user_openai_key(user),
         )
-        # Rebuild designed HTML after translation so CTA/button stay intact
-        if (language or "").strip().lower() not in ("", "english", "en", "en-us", "en-gb"):
-            sender = parse_sender_info(
+        sender = parse_sender_info(
+            request.sender_business_info,
+            request.sender_business_name,
+        )
+        html_body = wrap_outreach_plain_as_html(
+            body,
+            studio_name=sender.get("name") or resolve_from_display_name(
                 request.sender_business_info,
-                request.sender_business_name,
-            )
-            html_body = wrap_outreach_plain_as_html(
-                body,
-                studio_name=sender.get("name") or resolve_from_display_name(
-                    request.sender_business_info,
-                    user_name=user.get("name"),
-                    business_name=request.sender_business_name,
-                ),
-                studio_email=sender.get("email") or "",
-                studio_url=sender.get("url") or "",
-                business_name=request.business.name,
-                prototype_url=request.figma_prototype_link,
-            )
+                user_name=user.get("name"),
+                business_name=request.sender_business_name,
+            ),
+            studio_email=sender.get("email") or "",
+            studio_url=sender.get("url") or "",
+            business_name=request.business.name,
+            prototype_url=request.figma_prototype_link,
+            template_id=request.template_id,
+            logo_url=request.logo_url,
+        )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -1032,6 +1069,7 @@ async def preview_email(request: PreviewEmailRequest, user=Depends(require_user)
         "html_body": html_body,
         "business_name": request.business.name,
         "language": language,
+        "template_id": request.template_id or "midnight_teal",
         "from_name": resolve_from_display_name(
             request.sender_business_info,
             user_name=user.get("name"),
@@ -1041,6 +1079,7 @@ async def preview_email(request: PreviewEmailRequest, user=Depends(require_user)
             get_user_gmail_status(user).get("email")
             or ""
         ),
+        "templates": get_available_email_templates(),
     }
 
 
@@ -1091,6 +1130,8 @@ async def send_email(request: SendEmailRequest, user=Depends(require_user)):
                 studio_url=sender.get("url") or "",
                 business_name=request.business.name,
                 prototype_url=request.figma_prototype_link,
+                template_id=request.template_id,
+                logo_url=request.logo_url,
             )
         else:
             subject, body, html_body = generate_send_email(
@@ -1098,6 +1139,8 @@ async def send_email(request: SendEmailRequest, user=Depends(require_user)):
                 sender_info=request.sender_business_info,
                 figma_prototype_link=request.figma_prototype_link,
                 sender_business_name=request.sender_business_name,
+                template_id=request.template_id,
+                logo_url=request.logo_url,
             )
 
         if not subject or not body:

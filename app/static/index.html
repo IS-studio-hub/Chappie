@@ -405,7 +405,7 @@
 
   <!-- Email preview / edit modal -->
   <div class="email-modal-backdrop" id="emailModal" hidden>
-    <div class="email-modal" role="dialog" aria-modal="true" aria-labelledby="emailModalTitle">
+    <div class="email-modal email-modal-wide" role="dialog" aria-modal="true" aria-labelledby="emailModalTitle">
       <div class="email-modal-header">
         <div>
           <h2 id="emailModalTitle">Review email</h2>
@@ -413,64 +413,94 @@
         </div>
         <button type="button" class="drawer-close" onclick="closeEmailModal()" aria-label="Close">✕</button>
       </div>
-      <div class="email-modal-body">
-        <div class="field email-lang-row">
-          <label for="emailLanguage">Language</label>
-          <div class="email-lang-controls">
-            <select id="emailLanguage" class="email-language-select">
-              <option value="English">English</option>
-              <option value="French">French</option>
-              <option value="Spanish">Spanish</option>
-              <option value="Portuguese">Portuguese</option>
-              <option value="German">German</option>
-              <option value="Italian">Italian</option>
-              <option value="Dutch">Dutch</option>
-              <option value="Polish">Polish</option>
-              <option value="Ukrainian">Ukrainian</option>
-              <option value="Russian">Russian</option>
-              <option value="Arabic">Arabic</option>
-              <option value="Hebrew">Hebrew</option>
-              <option value="Chinese (Simplified)">Chinese (Simplified)</option>
-              <option value="Chinese (Traditional)">Chinese (Traditional)</option>
-              <option value="Japanese">Japanese</option>
-              <option value="Korean">Korean</option>
-              <option value="Hindi">Hindi</option>
-              <option value="Turkish">Turkish</option>
-              <option value="Greek">Greek</option>
-              <option value="Swedish">Swedish</option>
-              <option value="Vietnamese">Vietnamese</option>
-              <option value="Thai">Thai</option>
-              <option value="__custom__">Other (type below)…</option>
-            </select>
-            <input type="text" id="emailLanguageCustom" class="email-language-custom" placeholder="e.g. Catalan, Tagalog…" hidden maxlength="80">
-            <button type="button" class="btn btn-secondary" id="emailLanguageApplyBtn" onclick="regenerateEmailLanguage()">Apply</button>
+      <div class="email-modal-body email-modal-split">
+        <div class="email-modal-edit">
+          <div class="field email-lang-row">
+            <label for="emailLanguage">Language</label>
+            <div class="email-lang-controls">
+              <select id="emailLanguage" class="email-language-select">
+                <option value="English">English</option>
+                <option value="French">French</option>
+                <option value="Spanish">Spanish</option>
+                <option value="Portuguese">Portuguese</option>
+                <option value="German">German</option>
+                <option value="Italian">Italian</option>
+                <option value="Dutch">Dutch</option>
+                <option value="Polish">Polish</option>
+                <option value="Ukrainian">Ukrainian</option>
+                <option value="Russian">Russian</option>
+                <option value="Arabic">Arabic</option>
+                <option value="Hebrew">Hebrew</option>
+                <option value="Chinese (Simplified)">Chinese (Simplified)</option>
+                <option value="Chinese (Traditional)">Chinese (Traditional)</option>
+                <option value="Japanese">Japanese</option>
+                <option value="Korean">Korean</option>
+                <option value="Hindi">Hindi</option>
+                <option value="Turkish">Turkish</option>
+                <option value="Greek">Greek</option>
+                <option value="Swedish">Swedish</option>
+                <option value="Vietnamese">Vietnamese</option>
+                <option value="Thai">Thai</option>
+                <option value="__custom__">Other (type below)…</option>
+              </select>
+              <input type="text" id="emailLanguageCustom" class="email-language-custom" placeholder="e.g. Catalan, Tagalog…" hidden maxlength="80">
+              <button type="button" class="btn btn-secondary" id="emailLanguageApplyBtn" onclick="regenerateEmailLanguage()">Apply</button>
+            </div>
+            <p class="email-lang-hint">Non-English needs OpenAI connected in Integrations. Names, URLs, and emails stay untranslated.</p>
           </div>
-          <p class="email-lang-hint">Non-English needs OpenAI connected in Integrations. Names, URLs, and emails stay untranslated.</p>
+          <div class="field">
+            <label for="emailPreviewTo">To</label>
+            <input type="text" id="emailPreviewTo" readonly>
+          </div>
+          <div class="field">
+            <label for="emailPreviewSubject">Subject</label>
+            <input type="text" id="emailPreviewSubject" maxlength="200">
+          </div>
+          <div class="field">
+            <label for="emailPreviewBody">Message</label>
+            <textarea id="emailPreviewBody" class="email-preview-body" rows="12"></textarea>
+          </div>
+          <div class="email-design-panel">
+            <div class="email-design-head">
+              <strong>Email design</strong>
+              <span>10 inbox-friendly color templates</span>
+            </div>
+            <div class="email-template-grid" id="emailTemplateGrid"></div>
+            <div class="email-logo-row">
+              <div class="field" style="margin:0;flex:1">
+                <label for="emailLogoFile">Company logo</label>
+                <input type="file" id="emailLogoFile" accept="image/png,image/jpeg,image/webp,image/svg+xml">
+              </div>
+              <button type="button" class="btn btn-secondary" id="emailLogoClearBtn" onclick="clearEmailLogo()">Remove</button>
+            </div>
+            <div class="field" style="margin-bottom:0">
+              <label for="emailLogoUrl">Or logo URL (https)</label>
+              <input type="url" id="emailLogoUrl" placeholder="https://yoursite.com/logo.png">
+            </div>
+            <div class="email-logo-preview-wrap" id="emailLogoPreviewWrap" hidden>
+              <img id="emailLogoPreviewImg" alt="Logo preview">
+            </div>
+          </div>
+          <div class="email-deliverability">
+            <label class="email-check">
+              <input type="checkbox" id="emailTrackOpens">
+              <span>Track opens <em>(pixel can hurt spam score; leave off for better inbox)</em></span>
+            </label>
+            <label class="email-check">
+              <input type="checkbox" id="emailUnsubFooter" checked>
+              <span>Unsubscribe footer + List-Unsubscribe header</span>
+            </label>
+            <p class="email-from-preview" id="emailFromPreview"></p>
+          </div>
+          <p class="email-modal-hint" id="emailPreviewHint"></p>
         </div>
-        <div class="field">
-          <label for="emailPreviewTo">To</label>
-          <input type="text" id="emailPreviewTo" readonly>
+        <div class="email-modal-design-preview">
+          <div class="email-design-preview-head">
+            <strong>Design preview</strong>
+            <span id="emailTemplateLabel">Midnight Teal</span>
+          </div>
+          <iframe id="emailDesignPreviewFrame" title="Email design preview" sandbox=""></iframe>
         </div>
-        <div class="field">
-          <label for="emailPreviewSubject">Subject</label>
-          <input type="text" id="emailPreviewSubject" maxlength="200">
-        </div>
-        <div class="field">
-          <label for="emailPreviewBody">Message</label>
-          <textarea id="emailPreviewBody" class="email-preview-body" rows="14"></textarea>
-        </div>
-        <div class="email-deliverability">
-          <label class="email-check">
-            <input type="checkbox" id="emailTrackOpens">
-            <span>Track opens <em>(pixel — can hurt spam score; leave off for better inbox)</em></span>
-          </label>
-          <label class="email-check">
-            <input type="checkbox" id="emailUnsubFooter" checked>
-            <span>Unsubscribe footer + List-Unsubscribe header</span>
-          </label>
-          <p class="email-from-preview" id="emailFromPreview"></p>
-        </div>
-        <p class="email-modal-hint" id="emailPreviewHint"></p>
       </div>
       <div class="email-modal-footer">
         <button type="button" class="btn btn-secondary" onclick="closeEmailModal()">Cancel</button>

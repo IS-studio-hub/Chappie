@@ -563,6 +563,8 @@ async function fetchEmailPreview(business, language) {
       sender_business_info: getSenderInfo(),
       figma_prototype_link: getFigmaPrototypeLink(),
       language: language || "English",
+      template_id: getEmailTemplateId(),
+      logo_url: getEmailLogoUrl(),
     }),
   });
   const data = await res.json().catch(() => ({}));
@@ -571,6 +573,168 @@ async function fetchEmailPreview(business, language) {
     throw new Error(typeof detail === "string" ? detail : detail?.message || "Could not prepare email");
   }
   return data;
+}
+
+const EMAIL_LOGO_KEY = "chappie_email_logo_url";
+const EMAIL_TEMPLATE_KEY = "chappie_email_template_id";
+let emailTemplatesCache = [];
+let emailDesignRenderTimer = null;
+
+function getEmailTemplateId() {
+  return (
+    emailDraft?.template_id
+    || localStorage.getItem(EMAIL_TEMPLATE_KEY)
+    || "midnight_teal"
+  );
+}
+
+function getEmailLogoUrl() {
+  const urlInput = document.getElementById("emailLogoUrl")?.value?.trim() || "";
+  if (urlInput) return urlInput;
+  return (
+    emailDraft?.logo_url
+    || localStorage.getItem(EMAIL_LOGO_KEY)
+    || ""
+  );
+}
+
+function setEmailDesignPreview(html) {
+  const frame = document.getElementById("emailDesignPreviewFrame");
+  if (!frame) return;
+  frame.srcdoc = html || "<p style='padding:16px;font-family:sans-serif;color:#666'>No preview yet.</p>";
+}
+
+function renderEmailTemplateGrid(templates, activeId) {
+  const grid = document.getElementById("emailTemplateGrid");
+  if (!grid) return;
+  const list = templates?.length ? templates : emailTemplatesCache;
+  emailTemplatesCache = list;
+  grid.innerHTML = list.map((t) => {
+    const swatches = (t.swatches || [])
+      .map((c) => `<span style="background:${esc(c)}"></span>`)
+      .join("");
+    const active = t.id === activeId ? " is-active" : "";
+    return `
+      <button type="button" class="email-template-card${active}" data-template-id="${t.id}">
+        <strong>${esc(t.name)}</strong>
+        <small>${esc(t.blurb || "")}</small>
+        <div class="email-template-swatches">${swatches}</div>
+      </button>
+    `;
+  }).join("");
+  grid.querySelectorAll("[data-template-id]").forEach((btn) => {
+    btn.addEventListener("click", () => selectEmailTemplate(btn.getAttribute("data-template-id")));
+  });
+  const label = document.getElementById("emailTemplateLabel");
+  const active = list.find((t) => t.id === activeId);
+  if (label) label.textContent = active?.name || activeId || "Template";
+}
+
+function selectEmailTemplate(templateId) {
+  if (!emailDraft) return;
+  emailDraft.template_id = templateId;
+  localStorage.setItem(EMAIL_TEMPLATE_KEY, templateId);
+  renderEmailTemplateGrid(emailTemplatesCache, templateId);
+  scheduleEmailDesignRender();
+}
+
+function updateEmailLogoPreview(url) {
+  const wrap = document.getElementById("emailLogoPreviewWrap");
+  const img = document.getElementById("emailLogoPreviewImg");
+  if (!wrap || !img) return;
+  if (url) {
+    img.src = url;
+    wrap.hidden = false;
+  } else {
+    img.removeAttribute("src");
+    wrap.hidden = true;
+  }
+}
+
+function clearEmailLogo() {
+  const file = document.getElementById("emailLogoFile");
+  const url = document.getElementById("emailLogoUrl");
+  if (file) file.value = "";
+  if (url) url.value = "";
+  if (emailDraft) emailDraft.logo_url = "";
+  localStorage.removeItem(EMAIL_LOGO_KEY);
+  updateEmailLogoPreview("");
+  scheduleEmailDesignRender();
+}
+
+function onEmailLogoFileChange(event) {
+  const file = event.target?.files?.[0];
+  if (!file) return;
+  if (file.size > 400_000) {
+    showToast("Logo should be under 400KB for reliable email delivery.");
+    event.target.value = "";
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = () => {
+    const dataUrl = String(reader.result || "");
+    if (!dataUrl.startsWith("data:image/")) {
+      showToast("Please choose an image file.");
+      return;
+    }
+    if (emailDraft) emailDraft.logo_url = dataUrl;
+    localStorage.setItem(EMAIL_LOGO_KEY, dataUrl);
+    const urlInput = document.getElementById("emailLogoUrl");
+    if (urlInput) urlInput.value = "";
+    updateEmailLogoPreview(dataUrl);
+    scheduleEmailDesignRender();
+  };
+  reader.readAsDataURL(file);
+}
+
+function onEmailLogoUrlChange() {
+  const url = document.getElementById("emailLogoUrl")?.value?.trim() || "";
+  if (url && !/^https?:\/\//i.test(url)) {
+    showToast("Logo URL must start with https://");
+    return;
+  }
+  if (emailDraft) emailDraft.logo_url = url;
+  if (url) localStorage.setItem(EMAIL_LOGO_KEY, url);
+  else localStorage.removeItem(EMAIL_LOGO_KEY);
+  const file = document.getElementById("emailLogoFile");
+  if (file) file.value = "";
+  updateEmailLogoPreview(url);
+  scheduleEmailDesignRender();
+}
+
+function scheduleEmailDesignRender() {
+  if (!emailDraft) return;
+  clearTimeout(emailDesignRenderTimer);
+  emailDesignRenderTimer = setTimeout(() => {
+    refreshEmailDesignPreview();
+  }, 350);
+}
+
+async function refreshEmailDesignPreview() {
+  if (!emailDraft) return;
+  const body = document.getElementById("emailPreviewBody")?.value || emailDraft.body || "";
+  if (!body.trim()) return;
+  try {
+    const res = await fetch("/api/email/render", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        business_name: emailDraft.business?.name || "",
+        sender_business_name: getSenderBusinessName(),
+        sender_business_info: getSenderInfo(),
+        figma_prototype_link: getFigmaPrototypeLink(),
+        body,
+        template_id: getEmailTemplateId(),
+        logo_url: getEmailLogoUrl(),
+      }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) return;
+    emailDraft.html_body = data.html_body || "";
+    emailDraft.template_id = data.template_id || getEmailTemplateId();
+    setEmailDesignPreview(emailDraft.html_body);
+  } catch (_) {}
 }
 
 async function sendEmail(index) {
@@ -624,10 +788,14 @@ async function sendEmail(index) {
       recipients: data.recipients || emails,
       subject: data.subject || "",
       body: data.body || "",
+      html_body: data.html_body || "",
       language: data.language || language,
+      template_id: data.template_id || getEmailTemplateId(),
+      logo_url: getEmailLogoUrl(),
       from_name: data.from_name || "",
       from_email: data.from_email || "",
     };
+    if (data.templates?.length) emailTemplatesCache = data.templates;
     openEmailModal(emailDraft);
   } catch (e) {
     showToast(e.message);
@@ -659,13 +827,18 @@ async function regenerateEmailLanguage() {
     const data = await fetchEmailPreview(emailDraft.business, language);
     emailDraft.subject = data.subject || "";
     emailDraft.body = data.body || "";
+    emailDraft.html_body = data.html_body || "";
     emailDraft.language = data.language || language;
+    emailDraft.template_id = data.template_id || emailDraft.template_id;
     emailDraft.recipients = data.recipients || emailDraft.recipients;
+    if (data.templates?.length) emailTemplatesCache = data.templates;
     if (data.from_name) emailDraft.from_name = data.from_name;
     if (data.from_email) emailDraft.from_email = data.from_email;
     document.getElementById("emailPreviewSubject").value = emailDraft.subject;
     document.getElementById("emailPreviewBody").value = emailDraft.body;
     applyEmailTextDirection(emailDraft.language);
+    renderEmailTemplateGrid(emailTemplatesCache, emailDraft.template_id);
+    setEmailDesignPreview(emailDraft.html_body);
     const fromPreview = document.getElementById("emailFromPreview");
     if (fromPreview) {
       const name = emailDraft.from_name || "Your business";
@@ -714,6 +887,20 @@ function openEmailModal(draft) {
   syncEmailLanguageUi();
   applyEmailTextDirection(lang);
 
+  const savedLogo = draft.logo_url || localStorage.getItem(EMAIL_LOGO_KEY) || "";
+  draft.logo_url = savedLogo;
+  draft.template_id = draft.template_id || localStorage.getItem(EMAIL_TEMPLATE_KEY) || "midnight_teal";
+  const logoUrlInput = document.getElementById("emailLogoUrl");
+  const logoFile = document.getElementById("emailLogoFile");
+  if (logoFile) logoFile.value = "";
+  if (logoUrlInput) {
+    logoUrlInput.value = savedLogo.startsWith("http") ? savedLogo : "";
+  }
+  updateEmailLogoPreview(savedLogo);
+  renderEmailTemplateGrid(emailTemplatesCache, draft.template_id);
+  setEmailDesignPreview(draft.html_body || "");
+  if (!draft.html_body) scheduleEmailDesignRender();
+
   const trackEl = document.getElementById("emailTrackOpens");
   const unsubEl = document.getElementById("emailUnsubFooter");
   if (trackEl) trackEl.checked = false;
@@ -732,7 +919,7 @@ function openEmailModal(draft) {
       : "Review and edit the message, then click Send email.";
   const langNote = lang && lang !== "English" ? ` Language: ${lang}.` : "";
   document.getElementById("emailPreviewHint").textContent =
-    `${base}${langNote} Unsubscribe footer is added on send when enabled.`;
+    `${base}${langNote} Choose a design template and optional logo on the left; preview updates live.`;
   document.getElementById("emailSendConfirmBtn").disabled = false;
   document.getElementById("emailSendConfirmBtn").textContent = "Send email";
   modal.hidden = false;
@@ -742,6 +929,7 @@ function openEmailModal(draft) {
 function closeEmailModal() {
   document.getElementById("emailModal").hidden = true;
   document.body.style.overflow = "";
+  clearTimeout(emailDesignRenderTimer);
   emailDraft = null;
 }
 
@@ -772,6 +960,8 @@ async function confirmSendEmail() {
         subject,
         body,
         recipients: emailDraft.recipients,
+        template_id: getEmailTemplateId(),
+        logo_url: getEmailLogoUrl(),
         include_open_tracking: !!document.getElementById("emailTrackOpens")?.checked,
         include_unsubscribe_footer: document.getElementById("emailUnsubFooter")
           ? !!document.getElementById("emailUnsubFooter").checked
@@ -808,6 +998,11 @@ async function confirmSendEmail() {
 document.getElementById("emailModal")?.addEventListener("click", (e) => {
   if (e.target.id === "emailModal") closeEmailModal();
 });
+
+document.getElementById("emailPreviewBody")?.addEventListener("input", scheduleEmailDesignRender);
+document.getElementById("emailLogoFile")?.addEventListener("change", onEmailLogoFileChange);
+document.getElementById("emailLogoUrl")?.addEventListener("change", onEmailLogoUrlChange);
+document.getElementById("emailLogoUrl")?.addEventListener("blur", onEmailLogoUrlChange);
 
 document.addEventListener("keydown", (e) => {
   if (e.key === "Escape" && document.getElementById("emailModal") && !document.getElementById("emailModal").hidden) {

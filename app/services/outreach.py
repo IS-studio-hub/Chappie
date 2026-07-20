@@ -4,6 +4,7 @@ import re
 
 from app.config import settings
 from app.models import Business
+from app.services.email_templates import DEFAULT_TEMPLATE_ID, get_email_template, list_email_templates
 
 
 
@@ -416,15 +417,32 @@ def build_outreach_email_html(
     prototype_lead: str = "",
     prototype_follow: str = "",
     after_cta_html: str = "",
+    template_id: str = "",
+    logo_url: str = "",
 ) -> str:
-    """Dark card HTML matching the verification email look, with CTA button."""
+    """Designed HTML card email using a selected color template."""
+    theme = get_email_template(template_id)
     studio = html.escape(studio_name or "Our studio")
     eyebrow = studio
     title = html.escape(
         f"Website concept for {business_name}" if business_name else "Website concept"
     )
     intro_html = html.escape(intro).replace("\n", "<br>\n")
-    biz = html.escape(business_name or "your business")
+
+    logo_block = ""
+    logo = (logo_url or "").strip()
+    if logo and (
+        logo.startswith("https://")
+        or logo.startswith("http://")
+        or logo.startswith("data:image/")
+    ):
+        logo_block = f"""
+              <p style="margin:0 0 18px;">
+                <img src="{html.escape(logo, quote=True)}"
+                     alt="{studio}"
+                     width="140"
+                     style="display:block;max-width:140px;height:auto;border:0;outline:none;">
+              </p>"""
 
     cta = ""
     if prototype_url.strip():
@@ -437,16 +455,16 @@ def build_outreach_email_html(
             "could look online with a modern, professional site tailored to your brand."
         )
         cta = f"""
-              <p style="margin:0 0 8px;color:#eef3f8;line-height:1.55;font-size:15px;">
+              <p style="margin:0 0 8px;color:{theme['body']};line-height:1.55;font-size:15px;">
                 {html.escape(lead)}
               </p>
               <p style="margin:0 0 16px;text-align:center;">
                 <a href="{href}"
-                   style="display:inline-block;background:#3d9a7a;color:#04110c;text-decoration:none;font-weight:700;padding:14px 28px;border-radius:999px;font-size:15px;">
+                   style="display:inline-block;background:{theme['cta_bg']};color:{theme['cta_text']};text-decoration:none;font-weight:700;padding:14px 28px;border-radius:999px;font-size:15px;">
                   Your New Website
                 </a>
               </p>
-              <p style="margin:0 0 20px;color:#8fa0b5;line-height:1.55;font-size:14px;">
+              <p style="margin:0 0 20px;color:{theme['muted']};line-height:1.55;font-size:14px;">
                 {html.escape(follow)}
               </p>"""
 
@@ -455,32 +473,33 @@ def build_outreach_email_html(
     sig_bits = []
     if studio_email:
         sig_bits.append(
-            f'<a href="mailto:{html.escape(studio_email, quote=True)}" style="color:#c4a35a;text-decoration:none;">{html.escape(studio_email)}</a>'
+            f'<a href="mailto:{html.escape(studio_email, quote=True)}" style="color:{theme["link"]};text-decoration:none;">{html.escape(studio_email)}</a>'
         )
     if studio_url:
         sig_bits.append(
-            f'<a href="{html.escape(studio_url, quote=True)}" style="color:#c4a35a;word-break:break-all;">{html.escape(studio_url)}</a>'
+            f'<a href="{html.escape(studio_url, quote=True)}" style="color:{theme["link"]};word-break:break-all;">{html.escape(studio_url)}</a>'
         )
     sig_html = "<br>\n".join(sig_bits)
 
     return f"""<!DOCTYPE html>
 <html>
-<body style="margin:0;padding:0;background:#0c1118;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background:#0c1118;padding:40px 16px;">
+<body style="margin:0;padding:0;background:{theme['page_bg']};font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:{theme['page_bg']};padding:40px 16px;">
     <tr>
       <td align="center">
-        <table width="100%" style="max-width:520px;background:#172231;border:1px solid #2a3a4f;border-radius:14px;padding:32px;">
+        <table width="100%" style="max-width:520px;background:{theme['card_bg']};border:1px solid {theme['card_border']};border-radius:14px;padding:32px;">
           <tr>
-            <td style="color:#eef3f8;">
-              <p style="margin:0 0 8px;color:#3d9a7a;font-size:12px;letter-spacing:0.12em;text-transform:uppercase;font-weight:600;">{eyebrow}</p>
-              <h1 style="margin:0 0 16px;font-size:24px;font-weight:600;line-height:1.25;">{title}</h1>
-              <p style="margin:0 0 18px;color:#c5d0dc;line-height:1.55;font-size:15px;">{intro_html}</p>
+            <td style="color:{theme['text']};">
+              {logo_block}
+              <p style="margin:0 0 8px;color:{theme['eyebrow']};font-size:12px;letter-spacing:0.12em;text-transform:uppercase;font-weight:600;">{eyebrow}</p>
+              <h1 style="margin:0 0 16px;font-size:24px;font-weight:600;line-height:1.25;color:{theme['heading']};">{title}</h1>
+              <p style="margin:0 0 18px;color:{theme['body']};line-height:1.55;font-size:15px;">{intro_html}</p>
               {body_sections_html}
               {cta}
               {after}
-              <p style="margin:24px 0 0;color:#8fa0b5;font-size:13px;line-height:1.5;">Best regards,</p>
-              <p style="margin:6px 0 0;color:#8fa0b5;font-size:13px;line-height:1.6;">{sig_html}</p>
-              <p style="margin:24px 0 0;color:#6b7c90;font-size:12px;line-height:1.5;">
+              <p style="margin:24px 0 0;color:{theme['muted']};font-size:13px;line-height:1.5;">Best regards,</p>
+              <p style="margin:6px 0 0;color:{theme['muted']};font-size:13px;line-height:1.6;">{sig_html}</p>
+              <p style="margin:24px 0 0;color:{theme['muted']};font-size:12px;line-height:1.5;">
                 If this email isn't relevant, reply with "unsubscribe" and we won't contact you again.
               </p>
             </td>
@@ -501,8 +520,11 @@ def wrap_outreach_plain_as_html(
     studio_url: str = "",
     business_name: str = "",
     prototype_url: str = "",
+    template_id: str = "",
+    logo_url: str = "",
 ) -> str:
-    """Wrap an edited plain-text body in the verification-style card; turn Figma links into a CTA."""
+    """Wrap an edited plain-text body in the designed card; turn Figma links into a CTA."""
+    theme = get_email_template(template_id)
     text = (plain_body or "").strip()
     proto = (prototype_url or "").strip()
     if not proto:
@@ -565,13 +587,13 @@ def wrap_outreach_plain_as_html(
                 item = re.sub(r"^[•\-\*]\s+", "", ln)
                 items.append(f"<li style=\"margin:0 0 6px;\">{html.escape(item)}</li>")
             sections.append(
-                '<ul style="margin:0 0 18px;padding-left:18px;color:#c5d0dc;line-height:1.5;font-size:15px;">'
+                f'<ul style="margin:0 0 18px;padding-left:18px;color:{theme["body"]};line-height:1.5;font-size:15px;">'
                 + "".join(items)
                 + "</ul>"
             )
         else:
             sections.append(
-                '<p style="margin:0 0 16px;color:#c5d0dc;line-height:1.55;font-size:15px;">'
+                f'<p style="margin:0 0 16px;color:{theme["body"]};line-height:1.55;font-size:15px;">'
                 + html.escape(block).replace("\n", "<br>\n")
                 + "</p>"
             )
@@ -584,25 +606,33 @@ def wrap_outreach_plain_as_html(
         studio_email=studio_email,
         studio_url=studio_url,
         business_name=business_name,
+        template_id=template_id,
+        logo_url=logo_url,
     )
 
 
-def _html_p(text: str) -> str:
+def _html_p(text: str, theme: dict | None = None) -> str:
+    color = (theme or get_email_template(DEFAULT_TEMPLATE_ID))["body"]
     return (
-        '<p style="margin:0 0 16px;color:#c5d0dc;line-height:1.55;font-size:15px;">'
+        f'<p style="margin:0 0 16px;color:{color};line-height:1.55;font-size:15px;">'
         + html.escape(text)
         + "</p>"
     )
 
 
-def _html_bullets(items: list[str]) -> str:
+def _html_bullets(items: list[str], theme: dict | None = None) -> str:
+    color = (theme or get_email_template(DEFAULT_TEMPLATE_ID))["body"]
     lis = "".join(
         f'<li style="margin:0 0 6px;">{html.escape(item)}</li>' for item in items
     )
     return (
-        '<ul style="margin:0 0 18px;padding-left:18px;color:#c5d0dc;line-height:1.5;font-size:15px;">'
+        f'<ul style="margin:0 0 18px;padding-left:18px;color:{color};line-height:1.5;font-size:15px;">'
         f"{lis}</ul>"
     )
+
+
+def get_available_email_templates() -> list[dict]:
+    return list_email_templates()
 
 
 def generate_outreach(business: Business, sender_info: str = "") -> tuple[str, str]:
@@ -954,6 +984,8 @@ def generate_send_email(
     *,
     sender_business_name: str = "",
     require_sender_info: bool = True,
+    template_id: str = "",
+    logo_url: str = "",
 ) -> tuple[str, str, str]:
     """Write a short, unique outreach email. Returns (subject, plain_body, html_body)."""
     if require_sender_info and not sender_info.strip():
@@ -982,6 +1014,7 @@ def generate_send_email(
     studio_url = sender.get("url") or ""
     studio_email = sender.get("email") or ""
     biz = business.name
+    theme = get_email_template(template_id)
 
     intro = _varied_intro(sender, business)
     opener = _varied_opener(business, city, studio_name)
@@ -1031,18 +1064,18 @@ def generate_send_email(
 
     # Before prototype button: opener → opportunity → highlights → benefits
     before_cta = [
-        _html_p(opener),
-        _html_p(opportunity),
-        f'<p style="margin:0 0 8px;color:#eef3f8;line-height:1.55;font-size:15px;font-weight:600;">{html.escape(hl_heading)}</p>',
-        _html_bullets(highlights),
-        f'<p style="margin:16px 0 8px;color:#eef3f8;line-height:1.55;font-size:15px;font-weight:600;">{html.escape(ben_heading)}</p>',
-        _html_bullets(benefits),
+        _html_p(opener, theme),
+        _html_p(opportunity, theme),
+        f'<p style="margin:0 0 8px;color:{theme["heading"]};line-height:1.55;font-size:15px;font-weight:600;">{html.escape(hl_heading)}</p>',
+        _html_bullets(highlights, theme),
+        f'<p style="margin:16px 0 8px;color:{theme["heading"]};line-height:1.55;font-size:15px;font-weight:600;">{html.escape(ben_heading)}</p>',
+        _html_bullets(benefits, theme),
     ]
     if not prototype_link:
-        before_cta.append(_html_p(prototype_plain))
+        before_cta.append(_html_p(prototype_plain, theme))
 
     # CTA right after the prototype button, goal is a reply / call
-    after_cta = [_html_p(cta)]
+    after_cta = [_html_p(cta, theme)]
 
     proto_lines = [ln.strip() for ln in prototype_plain.split("\n") if ln.strip()]
     proto_lead = proto_lines[0] if proto_lines else ""
@@ -1062,6 +1095,8 @@ def generate_send_email(
         prototype_lead=proto_lead if prototype_link else "",
         prototype_follow=proto_follow if prototype_link else "",
         after_cta_html="\n".join(after_cta),
+        template_id=template_id,
+        logo_url=logo_url,
     )
 
     return _ban_fancy_dashes(subject), _ban_fancy_dashes(plain.strip()), _ban_fancy_dashes(html_body)

@@ -187,6 +187,12 @@ class SendEmailRequest(BaseModel):
     subject: Optional[str] = None
     body: Optional[str] = None
     recipients: list[str] = Field(default_factory=list)
+    template_id: str = Field(default="", max_length=40)
+    logo_url: str = Field(
+        default="",
+        max_length=600_000,
+        description="HTTPS logo URL or data:image/... base64 for the email header",
+    )
     include_open_tracking: bool = Field(
         default=False,
         description="Embed open-tracking pixel (can hurt deliverability)",
@@ -207,6 +213,18 @@ class PreviewEmailRequest(BaseModel):
         description="Target language for the email (e.g. French, Spanish, Arabic)",
         max_length=80,
     )
+    template_id: str = Field(default="", max_length=40)
+    logo_url: str = Field(default="", max_length=600_000)
+
+
+class RenderEmailRequest(BaseModel):
+    business_name: str = ""
+    sender_business_name: str = ""
+    sender_business_info: str = ""
+    figma_prototype_link: str = ""
+    body: str = ""
+    template_id: str = Field(default="", max_length=40)
+    logo_url: str = Field(default="", max_length=600_000)
 
 
 class PipelineStatusRequest(BaseModel):
