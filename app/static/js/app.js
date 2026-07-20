@@ -1820,7 +1820,7 @@ function renderCard(b, index) {
       ${renderSocialIcons(b.social_profiles, true)}
       <div class="card-footer">
         ${b.google_maps_url
-          ? `<a class="card-link" href="${esc(b.google_maps_url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">Maps</a>`
+          ? `<a class="card-link" href="${esc(b.google_maps_url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">Maps →</a>`
           : `<span></span>`}
       </div>
       <div class="card-actions">

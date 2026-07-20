@@ -1118,7 +1118,7 @@ html, body {
   display: flex;
   flex-direction: column;
   gap: 0.45rem;
-  margin-top: 0.15rem;
+  margin: 1rem;
 }
 
 .card-detail {
