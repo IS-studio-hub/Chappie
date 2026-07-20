@@ -1796,11 +1796,8 @@ function renderCard(b, index) {
   return `
     <div class="business-card ${selectedIndex === index ? "selected" : ""}" onclick="openDrawer(${index})">
       <div class="card-top">
-        <div>
-          <div class="card-name-row">
-            <div class="card-name">${esc(b.name)}</div>
-            ${favoriteButton(b, index)}
-          </div>
+        <div class="card-top-main">
+          <div class="card-name">${esc(b.name)}</div>
           <div class="card-score-tags">
             ${websiteOpportunityBadge(b)}
             ${leadQualityBadge(b)}
@@ -1810,7 +1807,10 @@ function renderCard(b, index) {
           ${pipelineBadge(b)}
           ${noWebsiteMeta(b)}
         </div>
-        ${b.rating ? `<div class="card-rating">★ ${b.rating} <span style="color:var(--text-muted);font-weight:400">(${b.review_count || 0})</span></div>` : ""}
+        <div class="card-top-right">
+          ${favoriteButton(b, index)}
+          ${b.rating ? `<div class="card-rating">★ ${b.rating} <span style="color:var(--text-muted);font-weight:400">(${b.review_count || 0})</span></div>` : ""}
+        </div>
       </div>
       ${b.category ? `<div class="card-category">${esc(b.category)}</div>` : ""}
       <div class="card-details">
