@@ -61,6 +61,7 @@ from app.services.outreach import (
     parse_sender_info,
     get_available_email_templates,
 )
+from app.services.geocoder import geocode_address
 from app.services.places_api import (
     search_nearby_businesses,
     search_text_businesses,
