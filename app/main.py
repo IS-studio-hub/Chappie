@@ -37,6 +37,14 @@ from app.services.brand_book import (
 )
 from app.services.openai_service import enrich_businesses_with_openai, translate_outreach_email
 from app.services.campaign import generate_marketing_campaign
+from app.services.search_jobs import (
+    create_search_job,
+    sync_search_job,
+    get_search_job,
+    get_active_search_job,
+    get_latest_completed_search,
+    fail_stale_running_jobs,
+)
 from app.services import gmail_oauth
 from app.services.user_integrations import (
     figma_status as get_user_figma_status,
@@ -103,6 +111,7 @@ STATIC_DIR = Path(__file__).parent / "static"
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 jobs: dict[str, SearchStatus] = {}
+job_owners: dict[str, str] = {}
 
 
 def _html(name: str) -> HTMLResponse:
@@ -113,6 +122,12 @@ def _html(name: str) -> HTMLResponse:
 async def startup():
     try:
         await connect_db()
+        try:
+            n = await fail_stale_running_jobs(older_than_hours=6.0)
+            if n:
+                print(f"[chappie] Marked {n} stale search job(s) as failed")
+        except Exception as e:
+            print(f"[chappie] Could not clean stale search jobs: {e}")
     except Exception as e:
         print(f"[chappie] MongoDB connection failed: {e}")
     try:
@@ -141,14 +156,24 @@ async def _run_search(
     job = jobs[job_id]
     job.status = "running"
 
+    async def _persist(force: bool = False) -> None:
+        try:
+            await sync_search_job(job, force=force)
+        except Exception as e:
+            print(f"[chappie] search job persist failed ({job_id}): {e}")
+
     async def on_progress(current: int, total: int, message: str) -> None:
         job.progress = current
         job.total = total
         job.message = message
+        await _persist(force=False)
+
+    await _persist(force=True)
 
     try:
         lat, lng, formatted = await geocode_address(request.address)
         job.message = f"Geocoded: {formatted}"
+        await _persist(force=False)
 
         target = max(1, int(max_results))
         is_large = (plan_id or "") == "large"
@@ -557,15 +582,18 @@ async def _run_search(
             + (f", {branded} brand books" if branded else "")
             + "."
         )
+        await _persist(force=True)
 
     except httpx.HTTPStatusError as e:
         job.status = "failed"
         job.error = parse_google_error(e.response) if e.response else str(e)
         job.message = f"Error: {job.error}"
+        await _persist(force=True)
     except Exception as e:
         job.status = "failed"
         job.error = str(e)
         job.message = f"Error: {e}"
+        await _persist(force=True)
 
 
 @app.get("/favicon.ico", include_in_schema=False)
@@ -890,18 +918,31 @@ async def start_search(
         max_results = plan.max_results
 
     job_id = str(uuid.uuid4())
+    user_id = str(user["_id"])
     jobs[job_id] = SearchStatus(
         job_id=job_id,
         status="pending",
         message="Starting search...",
     )
+    job_owners[job_id] = user_id
+    try:
+        await create_search_job(
+            job_id=job_id,
+            user_id=user_id,
+            request_payload=request.model_dump(),
+            plan_id=plan.id,
+        )
+    except Exception as e:
+        # Don't block search if persist fails; in-memory still works for this process
+        print(f"[chappie] create_search_job failed: {e}")
+
     background_tasks.add_task(
         _run_search,
         job_id,
         request,
         max_results,
         get_user_openai_key(user),
-        str(user["_id"]),
+        user_id,
         plan.id,
     )
     return {
@@ -911,19 +952,62 @@ async def start_search(
     }
 
 
+@app.get("/api/search/active")
+async def search_active(user=Depends(require_user)):
+    """Return the user's in-progress search, if any."""
+    user_id = str(user["_id"])
+    stored = await get_active_search_job(user_id)
+    if stored and stored.job_id in jobs and job_owners.get(stored.job_id) == user_id:
+        return {"job": jobs[stored.job_id]}
+    if stored:
+        return {"job": stored}
+    return {"job": None}
+
+
+@app.get("/api/search/latest")
+async def search_latest(user=Depends(require_user)):
+    """Return the user's most recent completed search results."""
+    user_id = str(user["_id"])
+    job = await get_latest_completed_search(user_id)
+    if (
+        job
+        and job.job_id in jobs
+        and jobs[job.job_id].status == "completed"
+        and job_owners.get(job.job_id) == user_id
+    ):
+        return {"job": jobs[job.job_id]}
+    return {"job": job}
+
+
 @app.get("/api/search/{job_id}", response_model=SearchStatus)
-async def get_search_status(job_id: str):
-    if job_id not in jobs:
+async def get_search_status(job_id: str, user=Depends(require_user)):
+    user_id = str(user["_id"])
+    if job_id in jobs and job_owners.get(job_id) == user_id:
+        return jobs[job_id]
+
+    job = await get_search_job(job_id, user_id=user_id)
+    if not job:
         raise HTTPException(status_code=404, detail="Job not found")
-    return jobs[job_id]
+    jobs[job_id] = job
+    job_owners[job_id] = user_id
+    return job
 
 
 @app.get("/api/download/{job_id}")
-async def download_results(job_id: str, format: str = "csv"):
-    if job_id not in jobs:
+async def download_results(job_id: str, format: str = "csv", user=Depends(require_user)):
+    user_id = str(user["_id"])
+    job = None
+    if job_id in jobs and job_owners.get(job_id) == user_id:
+        job = jobs[job_id]
+    else:
+        job = await get_search_job(job_id, user_id=user_id)
+        if job:
+            jobs[job_id] = job
+            job_owners[job_id] = user_id
+
+    if not job:
         raise HTTPException(status_code=404, detail="Job not found")
 
-    job = jobs[job_id]
     if job.status != "completed" or not job.result:
         raise HTTPException(status_code=400, detail="Search not completed yet")
 

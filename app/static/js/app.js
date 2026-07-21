@@ -22,11 +22,12 @@ const STORAGE_KEYS = {
   targetCategories: "chappie_target_categories",
 };
 
-/** Session-only search fields + results — cleared on login/logout */
+/** Session-only search fields + results — session cache; server is source of truth */
 const SEARCH_SESSION_KEYS = {
   address: "chappie_session_center_address",
   targetCategories: "chappie_session_target_categories",
   searchResults: "chappie_session_search_results",
+  jobId: "chappie_session_job_id",
 };
 
 function clearSearchSessionFields() {
@@ -34,6 +35,7 @@ function clearSearchSessionFields() {
     sessionStorage.removeItem(SEARCH_SESSION_KEYS.address);
     sessionStorage.removeItem(SEARCH_SESSION_KEYS.targetCategories);
     sessionStorage.removeItem(SEARCH_SESSION_KEYS.searchResults);
+    sessionStorage.removeItem(SEARCH_SESSION_KEYS.jobId);
     // Remove legacy localStorage target categories from older builds
     Object.keys(localStorage).forEach((key) => {
       if (key === STORAGE_KEYS.targetCategories || key.startsWith(`${STORAGE_KEYS.targetCategories}:`)) {
@@ -50,6 +52,32 @@ function clearSavedSearchResults() {
     sessionStorage.removeItem(SEARCH_SESSION_KEYS.searchResults);
   } catch {
     /* ignore */
+  }
+}
+
+function saveActiveJobId(jobId) {
+  try {
+    if (jobId) sessionStorage.setItem(SEARCH_SESSION_KEYS.jobId, jobId);
+    else sessionStorage.removeItem(SEARCH_SESSION_KEYS.jobId);
+    if (currentUserId) {
+      const key = storageKey("chappie_active_job_id");
+      if (jobId) localStorage.setItem(key, jobId);
+      else localStorage.removeItem(key);
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
+function loadActiveJobId() {
+  try {
+    return (
+      sessionStorage.getItem(SEARCH_SESSION_KEYS.jobId)
+      || (currentUserId ? localStorage.getItem(storageKey("chappie_active_job_id")) : null)
+      || null
+    );
+  } catch {
+    return null;
   }
 }
 
@@ -220,13 +248,53 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   loadGmailOAuthSetup();
 
-  // Keep last search visible while navigating Account / Pipeline in this session
+  // Restore in-progress search or last completed results from the server
+  await restorePersistedSearch();
+});
+
+async function restorePersistedSearch() {
+  try {
+    const activeRes = await fetch("/api/search/active", { credentials: "include" });
+    if (activeRes.status === 401) return;
+    if (activeRes.ok) {
+      const activeData = await activeRes.json();
+      const job = activeData?.job;
+      if (job && (job.status === "pending" || job.status === "running")) {
+        currentJobId = job.job_id;
+        saveActiveJobId(job.job_id);
+        document.getElementById("emptyState").style.display = "none";
+        setSearching(true);
+        const pct = job.total > 0 ? Math.round((job.progress / job.total) * 100) : 5;
+        showProgress(pct, job.message || "Search still running…");
+        if (pollInterval) clearInterval(pollInterval);
+        pollInterval = setInterval(pollStatus, 1500);
+        showToast("Resuming your search…");
+        return;
+      }
+    }
+
+    const latestRes = await fetch("/api/search/latest", { credentials: "include" });
+    if (latestRes.ok) {
+      const latestData = await latestRes.json();
+      const job = latestData?.job;
+      if (job?.status === "completed" && job.result?.businesses?.length) {
+        currentJobId = job.job_id;
+        saveActiveJobId(null);
+        document.getElementById("emptyState").style.display = "none";
+        renderResults(job.result);
+        return;
+      }
+    }
+  } catch {
+    /* fall through to session cache */
+  }
+
   const saved = loadSavedSearchResults();
   if (saved) {
     document.getElementById("emptyState").style.display = "none";
     renderResults(saved);
   }
-});
+}
 
 async function initCurrentUser() {
   try {
@@ -1867,6 +1935,7 @@ async function startSearch() {
 
     const data = await res.json();
     currentJobId = data.job_id;
+    saveActiveJobId(data.job_id);
     if (data.user) {
       usageInfo = {
         ...(usageInfo || {}),
@@ -1883,6 +1952,7 @@ async function startSearch() {
     } else {
       refreshUsage();
     }
+    if (pollInterval) clearInterval(pollInterval);
     pollInterval = setInterval(pollStatus, 1500);
   } catch (e) {
     showToast(e.message);
@@ -1896,7 +1966,21 @@ async function pollStatus() {
   if (!currentJobId) return;
 
   try {
-    const res = await fetch(`/api/search/${currentJobId}`);
+    const res = await fetch(`/api/search/${currentJobId}`, { credentials: "include" });
+    if (res.status === 401) {
+      clearInterval(pollInterval);
+      saveActiveJobId(currentJobId);
+      showToast("Session expired — sign in again to see your search.");
+      return;
+    }
+    if (res.status === 404) {
+      clearInterval(pollInterval);
+      setSearching(false);
+      hideProgress();
+      saveActiveJobId(null);
+      showToast("Search job not found.");
+      return;
+    }
     const job = await res.json();
 
     if (job.status === "running" || job.status === "pending") {
@@ -1906,18 +1990,18 @@ async function pollStatus() {
       clearInterval(pollInterval);
       setSearching(false);
       hideProgress();
+      saveActiveJobId(null);
       renderResults(job.result);
     } else if (job.status === "failed") {
       clearInterval(pollInterval);
       setSearching(false);
       hideProgress();
+      saveActiveJobId(null);
       showToast(job.error || "Search failed");
       document.getElementById("emptyState").style.display = "flex";
     }
   } catch {
-    clearInterval(pollInterval);
-    setSearching(false);
-    showToast("Connection error. Please try again.");
+    // Keep polling — transient network blips shouldn't kill a server-side search
   }
 }
 

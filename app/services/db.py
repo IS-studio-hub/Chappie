@@ -37,6 +37,10 @@ async def connect_db() -> None:
         unique=True,
     )
     await db.favorites.create_index([("user_id", 1), ("place_id", 1)])
+    await db.search_jobs.create_index("job_id", unique=True)
+    await db.search_jobs.create_index([("user_id", 1), ("updated_at", -1)])
+    await db.search_jobs.create_index([("user_id", 1), ("status", 1), ("updated_at", -1)])
+    await db.search_jobs.create_index([("user_id", 1), ("completed_at", -1)])
 
 
 async def close_db() -> None:
