@@ -53,9 +53,9 @@ a:hover { color: var(--text); }
 
 .brand-logo {
   display: block;
-  height: 36px;
+  height: 28px;
   width: auto;
-  max-width: min(168px, 42vw);
+  max-width: min(132px, 38vw);
 }
 
 .brand-mark {
