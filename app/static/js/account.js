@@ -52,7 +52,7 @@ function renderUpgrade(usage, currentPlan) {
         <div class="price">$${p.price_cad}<span style="font-size:0.8rem;color:var(--muted)"> CAD/mo</span></div>
         <ul>
           <li>${p.max_searches} searches per month</li>
-          <li>Up to ${p.max_results} businesses per search</li>
+          <li>${p.max_results} businesses every search (≥60% with email)</li>
         </ul>
         <button type="button" class="btn-plan" ${disabled ? "disabled" : ""} onclick="checkout('${p.id}')">${label}</button>
       </div>

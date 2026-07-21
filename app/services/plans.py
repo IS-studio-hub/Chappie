@@ -57,9 +57,23 @@ PLANS: dict[str, Plan] = {
 
 PLAN_ORDER = ["free", "small", "mid", "large"]
 
+# Hard quota: every search must aim for this many businesses (by plan).
+REQUIRED_RESULTS: dict[str, int] = {
+    "free": 10,
+    "small": 30,
+    "mid": 50,
+    "large": 50,
+}
+
 
 def get_plan(plan_id: str | None) -> Plan:
     return PLANS.get(plan_id or "free", PLANS["free"])
+
+
+def required_results_for_plan(plan_id: str | None) -> int:
+    """Exact business count every search must target for this plan."""
+    plan = get_plan(plan_id)
+    return REQUIRED_RESULTS.get(plan.id, plan.max_results)
 
 
 def is_upgrade(from_plan: str, to_plan: str) -> bool:
