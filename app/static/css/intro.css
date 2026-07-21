@@ -49,6 +49,14 @@ a { color: inherit; text-decoration: none; }
   align-items: center;
   gap: 0.65rem;
   font-weight: 700;
+  text-decoration: none;
+}
+
+.brand-logo {
+  display: block;
+  height: 36px;
+  width: auto;
+  max-width: min(168px, 42vw);
 }
 
 .brand-mark {
