@@ -1,6 +1,6 @@
 import asyncio
 import re
-from urllib.parse import quote_plus
+from urllib.parse import quote_plus, urljoin, urlparse
 
 import httpx
 from playwright.async_api import async_playwright
@@ -14,12 +14,23 @@ from app.services.social_discovery import (
     scrape_social_page_for_emails,
 )
 
-WORKER_COUNT = 5
-PER_BUSINESS_TIMEOUT_SEC = 12
+WORKER_COUNT = 8
+PER_BUSINESS_TIMEOUT_SEC = 25
 PAGE_GOTO_TIMEOUT_MS = 6000
 USER_AGENT = (
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
     "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+)
+
+# Common contact paths to try after the homepage (Large plan with-website leads)
+_WEBSITE_CONTACT_PATHS = (
+    "",
+    "/contact",
+    "/contact-us",
+    "/contactus",
+    "/about",
+    "/about-us",
+    "/aboutus",
 )
 
 
@@ -32,6 +43,123 @@ def _city(business: Business) -> str:
     if len(parts) >= 2:
         return parts[-2]
     return parts[0]
+
+
+def _normalize_website_url(raw: str | None) -> str | None:
+    if not raw or not str(raw).strip():
+        return None
+    url = str(raw).strip()
+    if not url.startswith(("http://", "https://")):
+        url = "https://" + url
+    try:
+        parsed = urlparse(url)
+        if not parsed.netloc:
+            return None
+        return f"{parsed.scheme}://{parsed.netloc}"
+    except Exception:
+        return None
+
+
+async def _http_scrape_website_emails(business: Business) -> list[str]:
+    """Scrape the business website (homepage + contact/about) for emails via HTTP."""
+    base = _normalize_website_url(business.website_url)
+    if not base:
+        return []
+
+    found: list[str] = []
+    headers = {
+        "User-Agent": USER_AGENT,
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Cache-Control": "no-cache",
+    }
+    async with httpx.AsyncClient(timeout=10.0, follow_redirects=True, headers=headers) as client:
+        for path in _WEBSITE_CONTACT_PATHS:
+            url = urljoin(base + "/", path.lstrip("/")) if path else base
+            try:
+                r = await client.get(url)
+                if r.status_code >= 400:
+                    continue
+                ctype = (r.headers.get("content-type") or "").lower()
+                if "html" not in ctype and "text" not in ctype and ctype:
+                    continue
+                text = r.text or ""
+                for e in extract_emails_from_text(text):
+                    if e not in found:
+                        found.append(e)
+                for m in re.finditer(r"mailto:([^\"'\\s?>]+)", text, re.I):
+                    for e in extract_emails_from_text(m.group(1)):
+                        if e not in found:
+                            found.append(e)
+                if found:
+                    break
+            except Exception:
+                continue
+    return rank_emails(found, business.name)
+
+
+async def _playwright_scrape_website_emails(page, business: Business) -> list[str]:
+    """Fallback when HTTP is blocked (403/JS sites) — scrape site in a browser."""
+    base = _normalize_website_url(business.website_url)
+    if not base or page is None:
+        return []
+    found: list[str] = []
+    for path in ("", "/contact", "/contact-us", "/about"):
+        url = urljoin(base + "/", path.lstrip("/")) if path else base
+        try:
+            await page.goto(url, wait_until="domcontentloaded", timeout=15000)
+            await page.wait_for_timeout(1800)
+            html = await page.content()
+            body = await page.locator("body").inner_text()
+            for e in extract_emails_from_text(html + "\n" + body):
+                if e not in found:
+                    found.append(e)
+            mailtos = page.locator('a[href^="mailto:"]')
+            count = await mailtos.count()
+            for i in range(min(count, 8)):
+                href = await mailtos.nth(i).get_attribute("href") or ""
+                for e in extract_emails_from_text(href):
+                    if e not in found:
+                        found.append(e)
+            if found:
+                break
+        except Exception:
+            continue
+    return rank_emails(found, business.name)
+
+
+async def _guess_role_emails_from_website(business: Business) -> list[str]:
+    """If the site domain has MX, try common role inboxes (info@, contact@, …)."""
+    from app.services.email_finder import filter_usable_emails, verify_email_deliverable
+
+    base = _normalize_website_url(business.website_url)
+    if not base:
+        return []
+    host = urlparse(base).netloc.lower().replace("www.", "")
+    if not host or "." not in host:
+        return []
+    # Skip generic hosts / socials
+    if any(host.endswith(d) or d in host for d in (
+        "facebook.com", "instagram.com", "google.com", "yelp.", "wixsite.com",
+        "squarespace.com", "linktr.ee", "bit.ly",
+    )):
+        return []
+
+    candidates = [
+        f"{local}@{host}"
+        for local in ("info", "contact", "hello", "office")
+    ]
+    usable, _mx = await filter_usable_emails(candidates)
+    # Prefer MX-verified role inboxes only (avoid inventing junk on catch-all-ish syntax)
+    verified = []
+    for e in usable:
+        try:
+            ok = await asyncio.to_thread(verify_email_deliverable, e)
+        except Exception:
+            ok = False
+        if ok:
+            verified.append(e)
+    return rank_emails(verified, business.name)
 
 
 async def _http_search_emails(business: Business) -> tuple[list[str], str | None, dict[str, str]]:
@@ -105,6 +233,21 @@ async def _process_business(page, biz: Business) -> Business:
         return biz.model_copy(update={
             "contact_emails": ranked,
             "contact_email": ranked[0],
+            "social_profiles": social_profiles,
+        })
+
+    # Large-plan leads usually have a website — scrape it first (highest yield).
+    site_emails = await _http_scrape_website_emails(biz)
+    if not site_emails and biz.website_url:
+        site_emails = await _playwright_scrape_website_emails(page, biz)
+    if not site_emails and biz.website_url:
+        site_emails = await _guess_role_emails_from_website(biz)
+    if site_emails:
+        ranked = rank_emails(merge_emails(emails, site_emails), biz.name)
+        return biz.model_copy(update={
+            "contact_email": ranked[0],
+            "contact_emails": ranked,
+            "email_source": "website",
             "social_profiles": social_profiles,
         })
 

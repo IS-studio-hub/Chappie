@@ -1887,6 +1887,10 @@ async function startSearch() {
   clearSavedSearchResults();
   allBusinesses = [];
   filteredBusinesses = [];
+  clearAdvancedFilters();
+  document.getElementById("filtersToggleBtn")?.classList.remove("active");
+  const filtersPanel = document.getElementById("advancedFilters");
+  if (filtersPanel) filtersPanel.hidden = true;
 
   document.getElementById("emptyState").style.display = "none";
   document.getElementById("resultsToolbar").classList.remove("active");

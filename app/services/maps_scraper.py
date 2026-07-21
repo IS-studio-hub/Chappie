@@ -81,11 +81,37 @@ async def _extract_text_by_label(page: Page, label: str) -> str | None:
     return None
 
 
-async def scrape_place_details(page: Page, maps_url: str) -> dict | None:
+async def _extract_website_url(page: Page) -> str | None:
+    selectors = [
+        'a[data-item-id="authority"]',
+        'a[aria-label*="Website"]',
+        'a[data-tooltip="Open website"]',
+    ]
+    for sel in selectors:
+        try:
+            el = page.locator(sel).first
+            if await el.is_visible(timeout=500):
+                href = await el.get_attribute("href")
+                if href and href.startswith("http"):
+                    return href.strip()
+        except Exception:
+            continue
+    return None
+
+
+async def scrape_place_details(
+    page: Page,
+    maps_url: str,
+    *,
+    allow_with_website: bool = False,
+) -> dict | None:
     """
     Scrape a Google Maps place page for enrichment fields Places API misses
-    (social links, email, products, areas served). Faster waits than before.
-    Returns None if business has a Website button (should be filtered out).
+    (social links, email, products, areas served).
+
+    When ``allow_with_website`` is False, returns None if the listing has a
+    Website button (SMB no-site pipeline). When True, keeps scraping and
+    records the website URL.
     """
     await page.goto(maps_url, wait_until="domcontentloaded", timeout=45000)
     try:
@@ -94,10 +120,17 @@ async def scrape_place_details(page: Page, maps_url: str) -> dict | None:
         await page.wait_for_timeout(800)
     await _accept_cookies(page)
 
-    if await _has_website_button(page):
+    has_site = await _has_website_button(page)
+    if has_site and not allow_with_website:
         return None
 
-    data: dict = {"has_website": False}
+    data: dict = {"has_website": has_site}
+    if has_site:
+        site = await _extract_website_url(page)
+        if site:
+            data["website_url"] = site
+            data["has_website"] = True
+
 
     try:
         name_el = page.locator("h1").first
@@ -305,6 +338,14 @@ async def enrich_businesses(
                 if progress_callback:
                     await progress_callback(idx, total, f"Enriching: {biz.name}")
 
+                # Large plan: Places already provides website_url — skip Maps.
+                # Email finder scrapes the site directly (much higher yield).
+                if keep_with_website and biz.website_url and not biz.contact_email:
+                    enriched[idx] = biz
+                    async with done_lock:
+                        done += 1
+                    continue
+
                 needs_scrape = not biz.contact_email or not biz.social_profiles
                 url = biz.google_maps_url
                 if not url and biz.name and biz.address:
@@ -315,7 +356,11 @@ async def enrich_businesses(
                     enriched[idx] = biz
                 else:
                     try:
-                        scraped = await scrape_place_details(page, url)
+                        scraped = await scrape_place_details(
+                            page,
+                            url,
+                            allow_with_website=keep_with_website,
+                        )
                         if scraped is None:
                             if keep_with_website or biz.has_website:
                                 enriched[idx] = biz.model_copy(update={"has_website": True})

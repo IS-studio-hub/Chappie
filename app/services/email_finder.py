@@ -21,6 +21,12 @@ JUNK_EMAIL_DOMAINS = {
     "gravatar.com", "wp.com", "squarespace.com",
 }
 
+# Fake "emails" from CSS/image asset names (e.g. sprite@2x.png)
+JUNK_EMAIL_TLDS = {
+    "png", "jpg", "jpeg", "gif", "svg", "webp", "ico", "css", "js",
+    "map", "woff", "woff2", "ttf", "eot", "mp4", "webm", "pdf",
+}
+
 JUNK_PREFIXES = ("noreply", "no-reply", "donotreply", "mailer-daemon", "postmaster")
 
 
@@ -33,7 +39,10 @@ def extract_emails_from_text(text: str) -> list[str]:
         email = email.lower().strip(".")
         domain = email.split("@")[-1]
         prefix = email.split("@")[0]
+        tld = domain.rsplit(".", 1)[-1] if "." in domain else ""
         if domain in JUNK_EMAIL_DOMAINS:
+            continue
+        if tld in JUNK_EMAIL_TLDS:
             continue
         if any(prefix.startswith(p) for p in JUNK_PREFIXES):
             continue
@@ -105,7 +114,10 @@ def _base_email_ok(email: str) -> bool:
         return False
     domain = raw.split("@")[-1]
     prefix = raw.split("@")[0]
+    tld = domain.rsplit(".", 1)[-1] if "." in domain else ""
     if domain in JUNK_EMAIL_DOMAINS:
+        return False
+    if tld in JUNK_EMAIL_TLDS:
         return False
     if any(prefix.startswith(p) for p in JUNK_PREFIXES):
         return False
