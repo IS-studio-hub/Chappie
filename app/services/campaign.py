@@ -278,7 +278,7 @@ def _enrich_image_prompt(prompt: str, business: Business) -> str:
 
 
 async def _generate_post_image(prompt: str, api_key: str) -> str:
-    """Return a temporary image URL from OpenAI Images API."""
+    """Return an image URL or data URL from OpenAI Images API."""
     model = (settings.openai_image_model or "dall-e-3").strip()
     payload: dict[str, Any] = {
         "model": model,
@@ -286,9 +286,9 @@ async def _generate_post_image(prompt: str, api_key: str) -> str:
         "n": 1,
         "size": "1024x1024",
     }
+    # dall-e-3 accepts quality; gpt-image-* does not use response_format
     if model.startswith("dall-e"):
         payload["quality"] = "standard"
-        payload["response_format"] = "url"
 
     async with httpx.AsyncClient(timeout=120.0) as client:
         response = await client.post(
@@ -300,15 +300,21 @@ async def _generate_post_image(prompt: str, api_key: str) -> str:
             json=payload,
         )
     if response.status_code != 200:
-        # Fallback to dall-e-3 if gpt-image-* fails
+        # Fallback to dall-e-3 if another model fails
         if model != "dall-e-3":
             return await _generate_post_image_dalle3(prompt, api_key)
-        raise ValueError(f"Image generation failed ({response.status_code}): {response.text[:240]}")
+        raise ValueError(
+            f"Image generation failed ({response.status_code}): {response.text[:240]}"
+        )
 
-    data = response.json().get("data") or []
+    return _extract_image_src(response.json())
+
+
+def _extract_image_src(payload: dict) -> str:
+    data = payload.get("data") or []
     if not data:
         raise ValueError("Image generation returned no data.")
-    item = data[0]
+    item = data[0] or {}
     url = item.get("url")
     if url:
         return url
@@ -325,7 +331,6 @@ async def _generate_post_image_dalle3(prompt: str, api_key: str) -> str:
         "n": 1,
         "size": "1024x1024",
         "quality": "standard",
-        "response_format": "url",
     }
     async with httpx.AsyncClient(timeout=120.0) as client:
         response = await client.post(
@@ -338,11 +343,7 @@ async def _generate_post_image_dalle3(prompt: str, api_key: str) -> str:
         )
     if response.status_code != 200:
         raise ValueError(f"DALL·E 3 failed ({response.status_code}): {response.text[:240]}")
-    data = response.json().get("data") or []
-    url = (data[0] or {}).get("url") if data else None
-    if not url:
-        raise ValueError("DALL·E 3 returned no image URL.")
-    return url
+    return _extract_image_src(response.json())
 
 
 async def _attach_images(
