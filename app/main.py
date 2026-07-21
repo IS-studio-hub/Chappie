@@ -81,7 +81,7 @@ from app.services.places_api import (
     PLACE_TYPES_LARGE,
     annotate_distance_from_center,
     sort_businesses_by_distance,
-    search_radius_rings,
+    quota_expand_rings,
 )
 from app.services.maps_scraper import enrich_businesses
 from app.services.outreach_pipeline import find_emails_for_businesses
@@ -182,21 +182,23 @@ async def _run_search(
         target = required_results_for_plan(plan_id) if plan_id else max(1, int(max_results))
         target = max(target, max(1, int(max_results)))
         is_large = (plan_id or "") == "large"
+        # Large includes businesses with websites; other plans prioritize no-website leads
         require_no_website = not is_large
         place_types = PLACE_TYPES_LARGE if is_large else PLACE_TYPES_SMB
         keep_with_website = is_large
         pool_target = candidate_pool_size(target, large_plan=is_large)
-        # Cap how many places we take per Google type so restaurants don't fill the whole pool
-        per_type_limit = 12 if is_large else 8
+        per_type_limit = 20 if is_large else 12
         exhaust_types = True
         email_batch = 12
-        max_refill_rounds = 12 if is_large else 8
+        # Keep expanding until plan quotas are met (radius can grow to 50 km)
+        expand_rings = quota_expand_rings(request.radius_km, hard_max_km=50.0)
+        max_refill_rounds = max(16, len(expand_rings) * 2)
         min_emails = max(1, math.ceil(target * EMAIL_RESULT_MIN_RATIO))
 
         job.message = (
             f"Collecting {target} businesses "
-            f"(≥{min_emails} with email / {int(EMAIL_RESULT_MIN_RATIO * 100)}% required; "
-            f"pool up to {pool_target})..."
+            f"(≥{min_emails} with email / {int(EMAIL_RESULT_MIN_RATIO * 100)}% required). "
+            f"Starting near center, expanding up to 50 km if needed..."
         )
 
         async def _fetch_candidates(
@@ -237,82 +239,57 @@ async def _run_search(
                 out.append(b)
             return out
 
-        async def _collect_closest_first(min_count: int) -> list[Business]:
-            """Search near the center first, then expand rings until quota or max radius."""
-            pool: list[Business] = []
-            rings = search_radius_rings(request.radius_km)
-            need = max(1, int(min_count))
-
-            for ring_km in rings:
-                if len(pool) >= need:
-                    break
-                exclude = {b.place_id for b in pool if b.place_id}
-                remaining = need - len(pool)
-                job.message = (
-                    f"Searching closest businesses within {ring_km:g} km "
-                    f"({len(pool)}/{need} candidates)..."
-                )
-                more = await _fetch_candidates(
-                    max(remaining * 2, min(80, need)),
-                    exclude,
-                    radius_km=ring_km,
-                )
-                if is_large and (not more or len(more) < max(8, remaining // 2)):
-                    text_extra = await search_text_businesses(
-                        lat,
-                        lng,
-                        ring_km,
-                        area_label=formatted,
-                        require_no_website=False,
-                        exclude_ids=exclude,
-                        max_results=min(100, need),
-                        progress_callback=on_progress,
-                    )
-                    more = _dedupe_extend(more or [], text_extra)
-
-                before = len(pool)
-                pool = _with_distances(_dedupe_extend(pool, more or []))
-                if len(pool) == before and ring_km >= request.radius_km - 0.05:
-                    break
-
-            return _with_distances(pool)
+        async def _pull_at_radius(
+            radius_km: float,
+            *,
+            need: int,
+            exclude: set[str],
+        ) -> list[Business]:
+            """Nearby + text search at a radius — used for all plans when filling quotas."""
+            more = await _fetch_candidates(
+                max(need * 2, min(150, need + 40)),
+                exclude,
+                radius_km=radius_km,
+            )
+            text_extra = await search_text_businesses(
+                lat,
+                lng,
+                radius_km,
+                area_label=formatted,
+                require_no_website=require_no_website,
+                exclude_ids=exclude,
+                max_results=max(need * 2, 80),
+                progress_callback=on_progress,
+            )
+            return _dedupe_extend(more or [], text_extra)
 
         async def _ensure_candidate_floor(min_count: int) -> list[Business]:
-            """Keep expanding outward until we have min_count closest candidates."""
-            pool = await _collect_closest_first(max(pool_target, min_count))
-            rounds = 0
-            while len(pool) < min_count and rounds < max_refill_rounds:
-                rounds += 1
+            """Grow from near-center rings out to 50 km until we have min_count candidates."""
+            pool: list[Business] = []
+            stagnant = 0
+            for ring_km in expand_rings:
+                if len(pool) >= min_count:
+                    break
                 exclude = {b.place_id for b in pool if b.place_id}
+                remaining = min_count - len(pool)
                 job.message = (
-                    f"Need {min_count - len(pool)} more candidates "
-                    f"({len(pool)}/{min_count}) — expanding search area..."
+                    f"Searching within {ring_km:g} km "
+                    f"({len(pool)}/{min_count} candidates for {target} results)..."
                 )
-                more = await _fetch_candidates(
-                    min(120, min_count * 2),
-                    exclude,
-                    radius_km=request.radius_km,
-                )
-                if is_large:
-                    text_extra = await search_text_businesses(
-                        lat,
-                        lng,
-                        min(request.radius_km * (1 + rounds * 0.25), 50),
-                        area_label=formatted,
-                        require_no_website=False,
-                        exclude_ids=exclude,
-                        max_results=100,
-                        progress_callback=on_progress,
-                    )
-                    more = _dedupe_extend(more or [], text_extra)
+                more = await _pull_at_radius(ring_km, need=remaining, exclude=exclude)
                 before = len(pool)
                 pool = _with_distances(_dedupe_extend(pool, more or []))
                 if len(pool) == before:
-                    break
-            return pool
+                    stagnant += 1
+                    if stagnant >= 2 and ring_km >= 20:
+                        # Still continue outer rings — sparse areas need the full 50 km
+                        continue
+                else:
+                    stagnant = 0
+            return _with_distances(pool)
 
-        # All plans: start near the center, then grow until we have a solid pool
-        candidates = await _ensure_candidate_floor(max(target, min_emails * 2))
+        # Over-collect candidates so email finding can hit the 60% floor
+        candidates = await _ensure_candidate_floor(max(pool_target, target * 3, min_emails * 4))
 
         kept_with_email: list[Business] = []
         scanned = 0
@@ -412,62 +389,36 @@ async def _run_search(
                 and refill_rounds < max_refill_rounds
             ):
                 refill_rounds += 1
+                ring_km = expand_rings[min(refill_rounds, len(expand_rings) - 1)]
                 exclude = {b.place_id for b in candidates if b.place_id}
                 more_needed = min(
                     candidate_pool_size(
                         max(target - len(kept_with_email), min_emails) * 2,
                         large_plan=is_large,
                     ),
-                    120,
+                    150,
                 )
                 scope = "all businesses" if is_large else "no-website businesses"
                 job.message = (
                     f"Need more emails ({len(kept_with_email)}/{target}, "
                     f"min {min_emails} for {int(EMAIL_RESULT_MIN_RATIO * 100)}% quota) — "
-                    f"searching additional {scope} (round {refill_rounds})..."
+                    f"searching {scope} within {ring_km:g} km "
+                    f"(round {refill_rounds})..."
                 )
-                more = await _fetch_candidates(more_needed, exclude)
-
-                if is_large and (not more or len(more) < 15):
-                    job.message = (
-                        f"Nearby saturated — text-searching industries "
-                        f"({len(kept_with_email)}/{min_emails} with email)..."
-                    )
-                    text_extra = await search_text_businesses(
-                        lat,
-                        lng,
-                        request.radius_km,
-                        area_label=formatted,
-                        require_no_website=False,
-                        exclude_ids=exclude,
-                        max_results=more_needed,
-                        progress_callback=on_progress,
-                    )
-                    more = _dedupe_extend(more or [], text_extra)
-
+                more = await _pull_at_radius(
+                    ring_km, need=more_needed, exclude=exclude
+                )
                 if not more:
-                    break
+                    # Jump to next outer ring; only stop after the last ring
+                    if ring_km >= expand_rings[-1] - 0.05:
+                        break
+                    continue
                 before = len(candidates)
                 candidates = _with_distances(_dedupe_extend(candidates, more))
                 if len(candidates) == before:
-                    if is_large and refill_rounds <= 5:
-                        text_only = await search_text_businesses(
-                            lat,
-                            lng,
-                            min(request.radius_km * 1.5, 50),
-                            area_label=formatted,
-                            require_no_website=False,
-                            exclude_ids=exclude,
-                            max_results=100,
-                            progress_callback=on_progress,
-                        )
-                        candidates = _with_distances(
-                            _dedupe_extend(candidates, text_only)
-                        )
-                        if len(candidates) == before:
-                            break
-                    else:
+                    if ring_km >= expand_rings[-1] - 0.05:
                         break
+                    continue
                 await _process_email_batches(email_goal=max(min_emails, target))
 
             # Prefer closest email leads, then pad without dropping below 60% emails.
@@ -484,33 +435,22 @@ async def _run_search(
                 and fill_rounds < max_refill_rounds
             ):
                 fill_rounds += 1
+                ring_km = expand_rings[min(fill_rounds, len(expand_rings) - 1)]
                 job.message = (
                     f"Filling plan quota {len(businesses)}/{target} "
                     f"({len(kept_with_email)}/{min_emails} with email) — "
-                    f"expanding search (round {fill_rounds})..."
+                    f"expanding to {ring_km:g} km (round {fill_rounds})..."
                 )
                 exclude = {b.place_id for b in candidates if b.place_id}
-                more = await _fetch_candidates(
-                    min(120, target * 2),
-                    exclude,
-                    radius_km=min(request.radius_km * (1 + fill_rounds * 0.25), 50),
-                )
-                text_extra = await search_text_businesses(
-                    lat,
-                    lng,
-                    min(max(request.radius_km * (1 + fill_rounds * 0.35), 10), 50),
-                    area_label=formatted,
-                    require_no_website=require_no_website,
-                    exclude_ids=exclude,
-                    max_results=target * 2,
-                    progress_callback=on_progress,
+                more = await _pull_at_radius(
+                    ring_km, need=min(150, target * 3), exclude=exclude
                 )
                 before = len(candidates)
-                candidates = _with_distances(
-                    _dedupe_extend(candidates, _dedupe_extend(more or [], text_extra))
-                )
-                if len(candidates) == before and not more and not text_extra:
-                    break
+                candidates = _with_distances(_dedupe_extend(candidates, more or []))
+                if len(candidates) == before:
+                    if ring_km >= expand_rings[-1] - 0.05:
+                        break
+                    continue
                 await _process_email_batches(email_goal=max(min_emails, target))
                 kept_with_email = _with_distances(kept_with_email)
                 businesses = _assemble_with_email_quota(
@@ -541,13 +481,21 @@ async def _run_search(
             with_mail = sum(1 for b in businesses if _has_email(b))
             no_site = sum(1 for b in businesses if not b.has_website)
             ratio_pct = int(round(100 * with_mail / len(businesses))) if businesses else 0
-            job.message = (
-                f"Ready {len(businesses)}/{target} businesses "
-                f"({with_mail} with email = {ratio_pct}%, need ≥{int(EMAIL_RESULT_MIN_RATIO * 100)}% "
-                f"and {min_emails}+ emails; "
-                f"{no_site} with no website; "
-                f"scanned {scanned}/{len(candidates)} candidates)."
-            )
+            if len(businesses) < target or with_mail < min_emails:
+                job.message = (
+                    f"Quota shortfall after expanding to {expand_rings[-1]:g} km: "
+                    f"{len(businesses)}/{target} businesses "
+                    f"({with_mail}/{min_emails} with email = {ratio_pct}%). "
+                    f"Scanned {scanned}/{len(candidates)} candidates."
+                )
+            else:
+                job.message = (
+                    f"Ready {len(businesses)}/{target} businesses "
+                    f"({with_mail} with email = {ratio_pct}%, need ≥{int(EMAIL_RESULT_MIN_RATIO * 100)}% "
+                    f"and {min_emails}+ emails; "
+                    f"{no_site} with no website; "
+                    f"scanned {scanned}/{len(candidates)} candidates)."
+                )
         else:
             businesses = []
 

@@ -154,6 +154,22 @@ def search_radius_rings(max_km: float) -> list[float]:
     return out
 
 
+def quota_expand_rings(user_radius_km: float, *, hard_max_km: float = 50.0) -> list[float]:
+    """Rings used to fill plan quotas — always expand out to hard_max if needed.
+
+    Starts at the user's radius preference (or 1 km), then grows to ``hard_max_km``
+    so a tiny slider setting cannot leave Free/Small/Mid/Large under-filled.
+    """
+    start = max(1.0, float(user_radius_km or 1.0))
+    hard_max = max(start, float(hard_max_km))
+    rings = search_radius_rings(hard_max)
+    # Drop rings smaller than ~half the user radius to avoid wasted tiny calls,
+    # but always keep at least the first usable ring and everything outward.
+    floor = min(start, 2.0)
+    trimmed = [r for r in rings if r + 0.05 >= floor]
+    return trimmed or rings
+
+
 def _headers() -> dict:
     return get_google_headers(NEARBY_FIELD_MASK)
 
