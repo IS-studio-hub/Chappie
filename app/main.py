@@ -1,4 +1,5 @@
 import asyncio
+import math
 import uuid
 from pathlib import Path
 
@@ -113,6 +114,9 @@ app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 jobs: dict[str, SearchStatus] = {}
 job_owners: dict[str, str] = {}
 
+# Every search result set must include at least this share of businesses with email.
+EMAIL_RESULT_MIN_RATIO = 0.60
+
 
 def _html(name: str) -> HTMLResponse:
     return HTMLResponse(content=(STATIC_DIR / name).read_text(encoding="utf-8"))
@@ -185,19 +189,20 @@ async def _run_search(
         per_type_limit = 12 if is_large else (8 if request.find_emails else None)
         exhaust_types = bool(request.find_emails or is_large)
         email_batch = 12
-        max_refill_rounds = 8 if is_large else 3
+        max_refill_rounds = 10 if is_large else 6
+        min_emails = max(1, math.ceil(target * EMAIL_RESULT_MIN_RATIO))
 
         if is_large:
             job.message = (
                 f"Large plan: collecting closest businesses first "
-                f"(need {target}; pool up to {pool_target})..."
+                f"(need {target}; ≥{min_emails} with email / {int(EMAIL_RESULT_MIN_RATIO * 100)}%; "
+                f"pool up to {pool_target})..."
             )
         else:
             job.message = (
-                f"Searching closest no-website candidates first "
-                f"(filling {target} with contact email; pool up to {pool_target})..."
-                if request.find_emails
-                else f"Searching closest businesses without websites (up to {target})..."
+                f"Searching closest candidates first "
+                f"(filling {target}; ≥{min_emails} with email / {int(EMAIL_RESULT_MIN_RATIO * 100)}%; "
+                f"pool up to {pool_target})..."
             )
 
         async def _fetch_candidates(
@@ -321,14 +326,48 @@ async def _run_search(
         kept_with_email: list[Business] = []
         scanned = 0
 
-        async def _process_email_batches() -> None:
+        def _has_email(b: Business) -> bool:
+            return bool(
+                (b.contact_email and str(b.contact_email).strip())
+                or any(str(e).strip() for e in (b.contact_emails or []))
+            )
+
+        def _assemble_with_email_quota(
+            email_leads: list[Business],
+            pool: list[Business],
+            limit: int,
+        ) -> list[Business]:
+            """Build a result list with at least EMAIL_RESULT_MIN_RATIO email leads."""
+            emails = _with_distances([b for b in email_leads if _has_email(b)])
+            n_email = len(emails)
+            if n_email == 0:
+                return []
+            # total <= n_email / ratio  ⇒  emails/total >= ratio
+            max_total = min(limit, max(n_email, math.floor(n_email / EMAIL_RESULT_MIN_RATIO)))
+            out: list[Business] = list(emails[:max_total])
+            seen = {b.place_id for b in out if b.place_id}
+            for c in _with_distances(pool):
+                if len(out) >= max_total:
+                    break
+                if c.place_id and c.place_id in seen:
+                    continue
+                # Adding a no-email row must not drop below the ratio
+                if n_email < EMAIL_RESULT_MIN_RATIO * (len(out) + 1):
+                    break
+                out.append(c)
+                if c.place_id:
+                    seen.add(c.place_id)
+            return _with_distances(out)
+
+        async def _process_email_batches(*, email_goal: int) -> None:
             nonlocal scanned, kept_with_email
-            while len(kept_with_email) < target and scanned < len(candidates):
+            while len(kept_with_email) < email_goal and scanned < len(candidates):
                 batch = candidates[scanned : scanned + email_batch]
                 scanned += len(batch)
                 job.message = (
-                    f"Finding emails: {len(kept_with_email)}/{target} "
-                    f"(scanned {scanned}/{len(candidates)})..."
+                    f"Finding emails: {len(kept_with_email)}/{email_goal} needed "
+                    f"(≥{int(EMAIL_RESULT_MIN_RATIO * 100)}% of {target}; "
+                    f"scanned {scanned}/{len(candidates)})..."
                 )
                 work = batch
                 if request.enrich_details and work:
@@ -337,7 +376,6 @@ async def _run_search(
                         progress_callback=on_progress,
                         keep_with_website=keep_with_website,
                     )
-                # Keep enriched copies on the candidate list for later padding
                 by_id = {b.place_id: b for b in work if b and b.place_id}
                 for i, c in enumerate(candidates):
                     if c.place_id and c.place_id in by_id:
@@ -348,7 +386,6 @@ async def _run_search(
                         work,
                         progress_callback=on_progress,
                     )
-                    # Persist emails back onto candidates
                     by_id = {b.place_id: b for b in work if b and b.place_id}
                     for i, c in enumerate(candidates):
                         if c.place_id and c.place_id in by_id:
@@ -366,27 +403,36 @@ async def _run_search(
                             if biz.place_id:
                                 seen_email_ids.add(biz.place_id)
                             kept_with_email.append(biz)
-                            if len(kept_with_email) >= target:
+                            if len(kept_with_email) >= email_goal:
                                 break
                 job.message = (
-                    f"Email quota {min(len(kept_with_email), target)}/{target} "
+                    f"Email quota {min(len(kept_with_email), email_goal)}/{email_goal} "
+                    f"(≥{int(EMAIL_RESULT_MIN_RATIO * 100)}% of results) "
                     f"after {scanned}/{len(candidates)} candidates..."
                 )
 
-        if request.find_emails and candidates:
-            await _process_email_batches()
+        # Always run the email pass so every plan can meet the 60% email quota
+        if candidates:
+            await _process_email_batches(email_goal=max(min_emails, target))
 
             refill_rounds = 0
-            while len(kept_with_email) < target and refill_rounds < max_refill_rounds:
+            while (
+                len(kept_with_email) < target
+                and refill_rounds < max_refill_rounds
+            ):
                 refill_rounds += 1
                 exclude = {b.place_id for b in candidates if b.place_id}
                 more_needed = min(
-                    candidate_pool_size(target - len(kept_with_email), large_plan=is_large),
+                    candidate_pool_size(
+                        max(target - len(kept_with_email), min_emails) * 2,
+                        large_plan=is_large,
+                    ),
                     120,
                 )
                 scope = "all businesses" if is_large else "no-website businesses"
                 job.message = (
-                    f"Need more emails ({len(kept_with_email)}/{target}) — "
+                    f"Need more emails ({len(kept_with_email)}/{target}, "
+                    f"min {min_emails} for {int(EMAIL_RESULT_MIN_RATIO * 100)}% quota) — "
                     f"searching additional {scope} (round {refill_rounds})..."
                 )
                 more = await _fetch_candidates(more_needed, exclude)
@@ -394,7 +440,7 @@ async def _run_search(
                 if is_large and (not more or len(more) < 15):
                     job.message = (
                         f"Nearby saturated — text-searching industries "
-                        f"({len(kept_with_email)}/{target} with email)..."
+                        f"({len(kept_with_email)}/{min_emails} with email)..."
                     )
                     text_extra = await search_text_businesses(
                         lat,
@@ -413,7 +459,7 @@ async def _run_search(
                 before = len(candidates)
                 candidates = _with_distances(_dedupe_extend(candidates, more))
                 if len(candidates) == before:
-                    if is_large and refill_rounds <= 3:
+                    if is_large and refill_rounds <= 5:
                         text_only = await search_text_businesses(
                             lat,
                             lng,
@@ -431,27 +477,19 @@ async def _run_search(
                             break
                     else:
                         break
-                await _process_email_batches()
+                await _process_email_batches(email_goal=max(min_emails, target))
 
-            # Prefer closest email leads, then pad with next-closest candidates.
+            # Prefer closest email leads, then pad without dropping below 60% emails.
             candidates = _with_distances(candidates)
             kept_with_email = _with_distances(kept_with_email)
-            email_ids = {b.place_id for b in kept_with_email if b.place_id}
-            padded: list[Business] = list(kept_with_email[:target])
-            if len(padded) < target:
-                for c in candidates:
-                    if len(padded) >= target:
-                        break
-                    if c.place_id and c.place_id in email_ids:
-                        continue
-                    padded.append(c)
-                    if c.place_id:
-                        email_ids.add(c.place_id)
+            businesses = _assemble_with_email_quota(
+                kept_with_email, candidates, target
+            )
 
-            # Still short on large? Force another candidate expansion + pad
-            if is_large and len(padded) < target:
+            # Still short of full target but have room under the email ratio? expand pool
+            if is_large and len(businesses) < target and len(kept_with_email) >= min_emails:
                 job.message = (
-                    f"Only {len(padded)}/{target} so far — expanding area coverage..."
+                    f"Only {len(businesses)}/{target} so far — expanding area coverage..."
                 )
                 exclude = {b.place_id for b in candidates if b.place_id}
                 more = await search_text_businesses(
@@ -468,20 +506,18 @@ async def _run_search(
                 candidates = _with_distances(
                     _dedupe_extend(candidates, _dedupe_extend(more, nearby_more))
                 )
-                for c in candidates:
-                    if len(padded) >= target:
-                        break
-                    if c.place_id and any(p.place_id == c.place_id for p in padded):
-                        continue
-                    padded.append(c)
-
-            businesses = _with_distances(padded[:target])
+                # Try emails on the new candidates before assembling again
+                await _process_email_batches(email_goal=max(min_emails, target))
+                kept_with_email = _with_distances(kept_with_email)
+                businesses = _assemble_with_email_quota(
+                    kept_with_email, candidates, target
+                )
 
             # Enrich any padded (non-email) rows that skipped enrich during email pass
             if request.enrich_details and businesses:
                 need_enrich = [
                     b for b in businesses
-                    if not b.contact_email and (not b.social_profiles or b.hours is None)
+                    if not _has_email(b) and (not b.social_profiles or b.hours is None)
                 ]
                 if need_enrich:
                     job.message = f"Enriching {len(need_enrich)} additional listings..."
@@ -496,25 +532,17 @@ async def _run_search(
                         for b in businesses
                     ]
 
-            with_mail = sum(1 for b in businesses if b.contact_email)
+            with_mail = sum(1 for b in businesses if _has_email(b))
             no_site = sum(1 for b in businesses if not b.has_website)
+            ratio_pct = int(round(100 * with_mail / len(businesses))) if businesses else 0
             job.message = (
                 f"Ready {len(businesses)}/{target} businesses "
-                f"({with_mail} with email, {no_site} with no website; "
+                f"({with_mail} with email = {ratio_pct}%, need ≥{int(EMAIL_RESULT_MIN_RATIO * 100)}%; "
+                f"{no_site} with no website; "
                 f"scanned {scanned}/{len(candidates)} candidates)."
             )
         else:
-            # No email pass — still honor large minimum by expanding candidates
-            if is_large and len(candidates) < target:
-                candidates = await _ensure_candidate_floor(target)
-            businesses = _with_distances(candidates)[:target]
-            if request.enrich_details and businesses:
-                job.message = "Enriching with Google Maps details..."
-                businesses = await enrich_businesses(
-                    businesses,
-                    progress_callback=on_progress,
-                    keep_with_website=keep_with_website,
-                )
+            businesses = []
 
         if openai_api_key and businesses:
             job.message = "Using OpenAI to fill missing business details..."
@@ -555,6 +583,16 @@ async def _run_search(
                 progress_callback=on_progress,
             )
             businesses = _with_distances(businesses)
+
+        # Final guard: never return a list below the email ratio
+        if businesses:
+            with_mail = [b for b in businesses if _has_email(b)]
+            without_mail = [b for b in businesses if not _has_email(b)]
+            businesses = _assemble_with_email_quota(
+                with_mail,
+                with_mail + without_mail,
+                target,
+            )
 
         job.result = SearchResponse(
             center_address=formatted,
