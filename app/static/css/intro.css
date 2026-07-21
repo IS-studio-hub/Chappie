@@ -305,33 +305,37 @@ a { color: inherit; text-decoration: none; }
   border-color: var(--accent);
 }
 
-.intro-footer {
+.legal-footer {
   text-align: center;
-  padding: 2.5rem 1.5rem 3rem;
+  padding: 2rem 1.5rem 3rem;
   color: var(--muted);
-  font-size: 0.9rem;
+  font-size: 0.88rem;
   border-top: 1px solid var(--border);
 }
 
-.footer-legal {
+.legal-footer nav {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.65rem 1.15rem;
+  gap: 0.75rem 1.25rem;
   justify-content: center;
   margin-bottom: 1rem;
 }
 
-.footer-legal a {
+.legal-footer nav a {
   color: var(--accent-2);
   text-decoration: none;
   font-size: 0.85rem;
 }
 
-.footer-legal a:hover {
+.legal-footer nav a:hover {
   text-decoration: underline;
 }
 
-.intro-footer a { color: var(--accent-2); }
+.legal-footer p a {
+  color: var(--accent-2);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
 
 .video-frame-empty {
   display: grid;
