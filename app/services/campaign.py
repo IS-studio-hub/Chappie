@@ -279,18 +279,37 @@ def _enrich_image_prompt(prompt: str, business: Business) -> str:
 
 async def _generate_post_image(prompt: str, api_key: str) -> str:
     """Return an image URL or data URL from OpenAI Images API."""
-    model = (settings.openai_image_model or "dall-e-3").strip()
+    preferred = (settings.openai_image_model or "gpt-image-1").strip()
+    # Prefer current Images API models; fall back through a short list.
+    candidates = [preferred]
+    for model in ("gpt-image-1", "gpt-image-1-mini", "dall-e-3"):
+        if model not in candidates:
+            candidates.append(model)
+
+    last_error = "Image generation failed"
+    for model in candidates:
+        try:
+            return await _generate_post_image_with_model(prompt, api_key, model)
+        except ValueError as e:
+            last_error = str(e)
+            continue
+    raise ValueError(last_error)
+
+
+async def _generate_post_image_with_model(prompt: str, api_key: str, model: str) -> str:
     payload: dict[str, Any] = {
         "model": model,
         "prompt": prompt,
         "n": 1,
         "size": "1024x1024",
     }
-    # dall-e-3 accepts quality; gpt-image-* does not use response_format
-    if model.startswith("dall-e"):
+    if model.startswith("gpt-image"):
+        # gpt-image-* uses low|medium|high (not "standard") and usually returns b64_json
+        payload["quality"] = "medium"
+    elif model.startswith("dall-e"):
         payload["quality"] = "standard"
 
-    async with httpx.AsyncClient(timeout=120.0) as client:
+    async with httpx.AsyncClient(timeout=180.0) as client:
         response = await client.post(
             f"{OPENAI_API_BASE}/images/generations",
             headers={
@@ -300,13 +319,10 @@ async def _generate_post_image(prompt: str, api_key: str) -> str:
             json=payload,
         )
     if response.status_code != 200:
-        # Fallback to dall-e-3 if another model fails
-        if model != "dall-e-3":
-            return await _generate_post_image_dalle3(prompt, api_key)
         raise ValueError(
-            f"Image generation failed ({response.status_code}): {response.text[:240]}"
+            f"Image generation failed ({response.status_code}) [{model}]: "
+            f"{response.text[:240]}"
         )
-
     return _extract_image_src(response.json())
 
 
@@ -322,28 +338,6 @@ def _extract_image_src(payload: dict) -> str:
     if b64:
         return f"data:image/png;base64,{b64}"
     raise ValueError("Image generation returned neither url nor b64_json.")
-
-
-async def _generate_post_image_dalle3(prompt: str, api_key: str) -> str:
-    payload = {
-        "model": "dall-e-3",
-        "prompt": prompt,
-        "n": 1,
-        "size": "1024x1024",
-        "quality": "standard",
-    }
-    async with httpx.AsyncClient(timeout=120.0) as client:
-        response = await client.post(
-            f"{OPENAI_API_BASE}/images/generations",
-            headers={
-                "Authorization": f"Bearer {api_key}",
-                "Content-Type": "application/json",
-            },
-            json=payload,
-        )
-    if response.status_code != 200:
-        raise ValueError(f"DALL·E 3 failed ({response.status_code}): {response.text[:240]}")
-    return _extract_image_src(response.json())
 
 
 async def _attach_images(
