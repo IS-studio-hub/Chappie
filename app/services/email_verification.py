@@ -50,9 +50,15 @@ async def start_email_signup(
         upsert=True,
     )
 
+    import html as html_lib
+
     verify_url = f"{settings.app_base_url.rstrip('/')}/api/auth/verify?token={token}"
-    display_name = name.strip() or "there"
-    studio = settings.studio_name or "IS Studio"
+    raw_name = name.strip() or "there"
+    display_name = html_lib.escape(raw_name)
+    studio_raw = settings.studio_name or "IS Studio"
+    studio = html_lib.escape(studio_raw)
+    safe_href = html_lib.escape(verify_url, quote=True)
+    safe_url_text = html_lib.escape(verify_url)
 
     html = f"""<!DOCTYPE html>
 <html>
@@ -69,7 +75,7 @@ async def start_email_signup(
                 Hi {display_name}, thanks for signing up. Click the button below to verify your email and create your Chappie account.
               </p>
               <p style="margin:0 0 28px;text-align:center;">
-                <a href="{verify_url}"
+                <a href="{safe_href}"
                    style="display:inline-block;background:#3d9a7a;color:#04110c;text-decoration:none;font-weight:700;padding:14px 28px;border-radius:999px;font-size:15px;">
                   Verify email
                 </a>
@@ -79,7 +85,7 @@ async def start_email_signup(
               </p>
               <p style="margin:0;color:#8fa0b5;font-size:12px;">
                 Or paste this link into your browser:<br>
-                <a href="{verify_url}" style="color:#c4a35a;word-break:break-all;">{verify_url}</a>
+                <a href="{safe_href}" style="color:#c4a35a;word-break:break-all;">{safe_url_text}</a>
               </p>
               <p style="margin:24px 0 0;color:#8fa0b5;font-size:12px;">{studio}</p>
             </td>
@@ -92,9 +98,9 @@ async def start_email_signup(
 </html>"""
 
     plain = (
-        f"Hi {display_name},\n\n"
+        f"Hi {raw_name},\n\n"
         f"Verify your email to create your Chappie account:\n{verify_url}\n\n"
-        f"This link expires in {VERIFY_TOKEN_HOURS} hours.\n\n{studio}"
+        f"This link expires in {VERIFY_TOKEN_HOURS} hours.\n\n{studio_raw}"
     )
 
     try:

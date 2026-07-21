@@ -4,6 +4,7 @@ function showToast(msg) {
   const el = document.getElementById("toast");
   el.textContent = msg;
   el.hidden = false;
+  if (window.ChappieA11y) ChappieA11y.announce(msg);
   setTimeout(() => { el.hidden = true; }, 3500);
 }
 

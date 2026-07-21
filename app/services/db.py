@@ -30,7 +30,21 @@ async def connect_db() -> None:
     await db.outreach_deals.create_index([("user_id", 1), ("updated_at", -1)])
     await db.outreach_deals.create_index([("user_id", 1), ("place_id", 1)])
     await db.outreach_deals.create_index("open_token", unique=True, sparse=True)
-    await db.brand_books.create_index("place_id", unique=True)
+    # Brand books are per-user so accounts never share generated brand systems
+    try:
+        await db.brand_books.drop_index("place_id_1")
+    except Exception:
+        pass
+    # Remove legacy global cache rows (no user_id) to prevent cross-account reuse
+    try:
+        await db.brand_books.delete_many({"user_id": {"$exists": False}})
+        await db.brand_books.delete_many({"user_id": None})
+    except Exception:
+        pass
+    await db.brand_books.create_index(
+        [("user_id", 1), ("place_id", 1)],
+        unique=True,
+    )
     await db.favorites.create_index([("user_id", 1), ("created_at", -1)])
     await db.favorites.create_index(
         [("user_id", 1), ("favorite_key", 1)],

@@ -8,7 +8,7 @@
   --border-light: #353d54;
   --text: #f0f2f5;
   --text-secondary: #b4bac8;
-  --text-muted: #7a8299;
+  --text-muted: #9aa3b8;
   --accent: #5b8def;
   --accent-dim: rgba(91, 141, 239, 0.12);
   --accent-hover: #4a7de0;
@@ -2322,4 +2322,26 @@ html, body {
   .business-grid { grid-template-columns: 1fr; }
   .stats-row { grid-template-columns: 1fr; }
   .search-filter input { width: 160px; }
+}
+
+/* Accessibility */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent) !important;
+  outline-offset: 2px;
+}
+
+.detail-drawer:focus {
+  outline: none;
 }

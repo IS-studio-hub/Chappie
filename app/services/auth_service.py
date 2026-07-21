@@ -47,6 +47,7 @@ def set_session_cookie(response: Response, user_id: str) -> None:
         key=COOKIE_NAME,
         value=create_token(user_id),
         httponly=True,
+        secure=settings.cookie_secure,
         samesite="lax",
         max_age=TOKEN_DAYS * 24 * 3600,
         path="/",
@@ -54,7 +55,13 @@ def set_session_cookie(response: Response, user_id: str) -> None:
 
 
 def clear_session_cookie(response: Response) -> None:
-    response.delete_cookie(COOKIE_NAME, path="/")
+    response.delete_cookie(
+        COOKIE_NAME,
+        path="/",
+        secure=settings.cookie_secure,
+        httponly=True,
+        samesite="lax",
+    )
 
 
 def serialize_user(doc: dict[str, Any]) -> dict[str, Any]:

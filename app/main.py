@@ -101,11 +101,16 @@ from app.services.billing import (
     get_usage_summary, handle_checkout_completed, handle_invoice_paid,
 )
 from app.services.plans import get_plan, required_results_for_plan
+from app.services import rate_limit
 
+_docs_enabled = not settings.is_production
 app = FastAPI(
     title="Chappie - Business Finder",
     description="Find local businesses without websites within a radius of any address",
     version="1.0.0",
+    docs_url="/docs" if _docs_enabled else None,
+    redoc_url="/redoc" if _docs_enabled else None,
+    openapi_url="/openapi.json" if _docs_enabled else None,
 )
 
 STATIC_DIR = Path(__file__).parent / "static"
@@ -124,6 +129,7 @@ def _html(name: str) -> HTMLResponse:
 
 @app.on_event("startup")
 async def startup():
+    settings.assert_secure_config()
     try:
         await connect_db()
         try:
@@ -535,6 +541,7 @@ async def _run_search(
             businesses = await enrich_businesses_with_brand_books(
                 businesses,
                 api_key=openai_api_key,
+                user_id=user_id,
                 progress_callback=on_progress,
             )
             businesses = _with_distances(businesses)
@@ -730,8 +737,11 @@ async def track_open(token: str):
 # ── Auth ──
 
 @app.post("/api/auth/signup")
-async def signup(body: SignupRequest):
+async def signup(body: SignupRequest, request: Request):
     """Start signup — sends verification email; account is created only after verify."""
+    client = request.client.host if request.client else "unknown"
+    if not rate_limit.allow(f"signup:{client}", limit=5, window_seconds=60):
+        raise HTTPException(status_code=429, detail="Too many signup attempts. Try again shortly.")
     try:
         result = await start_email_signup(
             body.email,
@@ -771,7 +781,10 @@ async def verify_email(token: str = ""):
 
 
 @app.post("/api/auth/signin")
-async def signin(body: SigninRequest, response: Response):
+async def signin(body: SigninRequest, request: Request, response: Response):
+    client = request.client.host if request.client else "unknown"
+    if not rate_limit.allow(f"signin:{client}", limit=10, window_seconds=60):
+        raise HTTPException(status_code=429, detail="Too many sign-in attempts. Try again shortly.")
     user = await authenticate_user(body.email, body.password)
     if not user:
         raise HTTPException(status_code=401, detail="Invalid email or password.")
@@ -821,22 +834,21 @@ async def billing_checkout(body: CheckoutRequest, user=Depends(require_user)):
 async def stripe_webhook(request: Request):
     payload = await request.body()
     sig = request.headers.get("stripe-signature", "")
+    if not settings.stripe_webhook_secret:
+        raise HTTPException(
+            status_code=503,
+            detail="Stripe webhook is not configured (STRIPE_WEBHOOK_SECRET required).",
+        )
     if settings.stripe_secret_key:
         stripe.api_key = settings.stripe_secret_key
-    if settings.stripe_webhook_secret:
-        try:
-            event = stripe.Webhook.construct_event(
-                payload, sig, settings.stripe_webhook_secret
-            )
-        except Exception as e:
-            raise HTTPException(status_code=400, detail=str(e))
-        etype = event["type"]
-        data = event["data"]["object"]
-    else:
-        import json
-        event = json.loads(payload)
-        etype = event["type"]
-        data = event["data"]["object"]
+    try:
+        event = stripe.Webhook.construct_event(
+            payload, sig, settings.stripe_webhook_secret
+        )
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    etype = event["type"]
+    data = event["data"]["object"]
 
     if etype == "checkout.session.completed":
         obj = data if isinstance(data, dict) else {
@@ -867,9 +879,13 @@ async def billing_confirm(session_id: str = "", user=Depends(require_user)):
     if session.payment_status not in ("paid", "no_payment_required"):
         raise HTTPException(status_code=400, detail="Payment not completed yet.")
 
+    meta = dict(session.metadata or {})
+    if str(meta.get("user_id") or "") != str(user["_id"]):
+        raise HTTPException(status_code=403, detail="Checkout session does not belong to this account.")
+
     session_data = {
         "id": session.id,
-        "metadata": dict(session.metadata or {}),
+        "metadata": meta,
         "subscription": session.subscription,
         "amount_total": session.amount_total,
         "payment_status": session.payment_status,
@@ -1019,7 +1035,9 @@ async def download_results(job_id: str, format: str = "csv", user=Depends(requir
 
 
 @app.get("/api/diagnose")
-async def diagnose():
+async def diagnose(user=Depends(require_user)):
+    if not settings.enable_diagnostics:
+        raise HTTPException(status_code=404, detail="Not found")
     return await diagnose_google_access()
 
 
@@ -1050,6 +1068,7 @@ async def figma_create_site(request: FigmaCreateSiteRequest, user=Depends(requir
             book = await build_brand_book_for_business(
                 business,
                 api_key=get_user_openai_key(user),
+                user_id=str(user["_id"]),
             )
             business = business.model_copy(update={"brand_book": book})
         except Exception:
@@ -1102,6 +1121,7 @@ async def campaign_generate(request: CampaignGenerateRequest, user=Depends(requi
             request.business,
             api_key=api_key,
             goal=request.goal or "auto",
+            user_id=str(user["_id"]),
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))

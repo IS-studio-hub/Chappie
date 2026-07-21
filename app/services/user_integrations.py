@@ -14,6 +14,7 @@ from googleapiclient.discovery import build
 
 from app.config import settings
 from app.services.db import get_db
+from app.services.secret_crypto import decrypt_secret, encrypt_secret
 
 OPENAI_API_BASE = "https://api.openai.com/v1"
 FIGMA_API_BASE = "https://api.figma.com/v1"
@@ -44,7 +45,7 @@ async def reload_user(user: dict[str, Any]) -> dict[str, Any]:
 
 def figma_status(user: dict[str, Any]) -> dict:
     integ = _integrations(user)
-    if not integ.get("figma_token"):
+    if not decrypt_secret(integ.get("figma_token")):
         return {"connected": False}
     return {
         "connected": True,
@@ -72,7 +73,7 @@ async def connect_figma_for_user(user: dict[str, Any], token: str) -> dict:
     data = response.json()
     integ = _integrations(user)
     integ.update({
-        "figma_token": token,
+        "figma_token": encrypt_secret(token),
         "figma_email": data.get("email"),
         "figma_handle": data.get("handle"),
     })
@@ -91,14 +92,14 @@ async def disconnect_figma_for_user(user: dict[str, Any]) -> dict:
 
 
 def get_user_figma_token(user: dict[str, Any]) -> str | None:
-    return (_integrations(user).get("figma_token") or None)
+    return decrypt_secret(_integrations(user).get("figma_token"))
 
 
 # ── OpenAI ──
 
 def openai_status(user: dict[str, Any]) -> dict:
     integ = _integrations(user)
-    if not integ.get("openai_api_key"):
+    if not decrypt_secret(integ.get("openai_api_key")):
         return {"connected": False}
     return {"connected": True, "model": settings.openai_model}
 
@@ -122,7 +123,7 @@ async def connect_openai_for_user(user: dict[str, Any], api_key: str) -> dict:
         raise ValueError(f"OpenAI API error: {response.status_code}")
 
     integ = _integrations(user)
-    integ["openai_api_key"] = api_key
+    integ["openai_api_key"] = encrypt_secret(api_key)
     await _save_integrations(user["_id"], integ)
     user["integrations"] = integ
     return openai_status(user)
@@ -137,7 +138,7 @@ async def disconnect_openai_for_user(user: dict[str, Any]) -> dict:
 
 
 def get_user_openai_key(user: dict[str, Any]) -> str | None:
-    return (_integrations(user).get("openai_api_key") or None)
+    return decrypt_secret(_integrations(user).get("openai_api_key"))
 
 
 # ── Gmail ──
@@ -145,13 +146,17 @@ def get_user_openai_key(user: dict[str, Any]) -> str | None:
 def gmail_status(user: dict[str, Any]) -> dict:
     integ = _integrations(user)
     method = integ.get("gmail_method")
-    if method == "oauth" and integ.get("gmail_oauth_json"):
+    if method == "oauth" and decrypt_secret(integ.get("gmail_oauth_json")):
         return {
             "connected": True,
             "method": "oauth",
             "email": integ.get("gmail_email") or "",
         }
-    if method == "smtp" and integ.get("gmail_smtp_email") and integ.get("gmail_smtp_password"):
+    if (
+        method == "smtp"
+        and integ.get("gmail_smtp_email")
+        and decrypt_secret(integ.get("gmail_smtp_password"))
+    ):
         return {
             "connected": True,
             "method": "smtp",
@@ -195,7 +200,7 @@ async def connect_gmail_smtp_for_user(user: dict[str, Any], email: str, app_pass
     integ.update({
         "gmail_method": "smtp",
         "gmail_smtp_email": email,
-        "gmail_smtp_password": app_password,
+        "gmail_smtp_password": encrypt_secret(app_password),
         "gmail_email": email,
         "gmail_oauth_json": None,
     })
@@ -219,7 +224,7 @@ async def save_gmail_oauth_for_user(user_id: str, creds: Credentials, email: str
 
     integ.update({
         "gmail_method": "oauth",
-        "gmail_oauth_json": creds.to_json(),
+        "gmail_oauth_json": encrypt_secret(creds.to_json()),
         "gmail_email": email,
         "gmail_smtp_email": None,
         "gmail_smtp_password": None,
@@ -249,7 +254,7 @@ async def disconnect_gmail_for_user(user: dict[str, Any]) -> dict:
 
 def get_user_gmail_credentials(user: dict[str, Any]) -> Credentials | None:
     integ = _integrations(user)
-    raw = integ.get("gmail_oauth_json")
+    raw = decrypt_secret(integ.get("gmail_oauth_json"))
     if not raw:
         return None
     try:
@@ -319,7 +324,7 @@ def send_email_as_user(
 
     if method == "smtp":
         email = integ.get("gmail_smtp_email")
-        password = integ.get("gmail_smtp_password")
+        password = decrypt_secret(integ.get("gmail_smtp_password"))
         if not email or not password:
             raise ValueError("Gmail not connected.")
         msg = _build_message(email)

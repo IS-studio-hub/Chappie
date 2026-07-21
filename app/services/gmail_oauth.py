@@ -148,21 +148,17 @@ def start_oauth_flow(user_id: str) -> str:
 
 
 def complete_oauth_flow(code: str, state: str = "") -> tuple[Credentials, str]:
-    """Exchange code for credentials. Returns (creds, user_id)."""
-    flow = None
-    user_id = ""
-    if state and state in _pending_flows:
-        flow, user_id = _pending_flows.pop(state)
-    else:
-        if len(_pending_flows) == 1:
-            state_key = next(iter(_pending_flows))
-            flow, user_id = _pending_flows.pop(state_key)
-        else:
-            redirect_uri = get_redirect_uri()
-            flow = Flow.from_client_config(
-                _client_config(), scopes=SCOPES, redirect_uri=redirect_uri
-            )
+    """Exchange code for credentials. Returns (creds, user_id).
 
+    State is mandatory — never fall back to another user's pending flow.
+    """
+    if not code:
+        raise ValueError("Missing OAuth authorization code.")
+    if not state or state not in _pending_flows:
+        raise ValueError(
+            "Invalid or expired OAuth state. Start Connect with Google again."
+        )
+    flow, user_id = _pending_flows.pop(state)
     flow.fetch_token(code=code)
     return flow.credentials, user_id
 

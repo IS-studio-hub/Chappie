@@ -51,10 +51,10 @@
           </div>
 
           <div class="field">
-            <label>Search Radius</label>
+            <label for="radiusSlider">Search Radius</label>
             <div class="radius-control">
-              <input type="range" id="radiusSlider" min="1" max="50" step="0.5" value="10">
-              <span class="radius-value" id="radiusDisplay">10 km</span>
+              <input type="range" id="radiusSlider" min="1" max="50" step="0.5" value="10" aria-valuemin="1" aria-valuemax="50" aria-valuenow="10" aria-describedby="radiusDisplay">
+              <span class="radius-value" id="radiusDisplay" aria-live="polite">10 km</span>
             </div>
             <input type="hidden" id="radius" value="10">
           </div>
@@ -73,7 +73,7 @@
         </div>
 
         <!-- Progress -->
-        <div class="progress-panel" id="progressPanel">
+        <div class="progress-panel" id="progressPanel" role="status" aria-live="polite" aria-atomic="true">
           <div class="progress-header">
             <div class="spinner"></div>
             <div class="progress-message" id="progressMessage">Starting...</div>
@@ -365,10 +365,10 @@
 
   <!-- Detail drawer -->
   <div class="drawer-overlay" id="drawerOverlay" onclick="closeDrawer()"></div>
-  <div class="detail-drawer" id="drawer">
+  <div class="detail-drawer" id="drawer" role="dialog" aria-modal="true" aria-labelledby="drawerTitle" aria-hidden="true">
     <div class="drawer-header">
       <div id="drawerTitle" style="font-size:1.15rem;font-weight:600"></div>
-      <button class="drawer-close" onclick="closeDrawer()">✕</button>
+      <button type="button" class="drawer-close" onclick="closeDrawer()" aria-label="Close details">✕</button>
     </div>
     <div class="drawer-body" id="drawerBody"></div>
   </div>
@@ -616,8 +616,9 @@
   </div>
 
   <!-- Toast -->
-  <div class="toast" id="toast"></div>
+  <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
 
+  <script src="/static/js/a11y.js"></script>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="/static/js/app.js"></script>
 </body>

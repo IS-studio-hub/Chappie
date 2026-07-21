@@ -1,4 +1,5 @@
 import asyncio
+import contextvars
 import json
 import re
 from urllib.parse import quote_plus
@@ -17,15 +18,29 @@ from app.services.social_discovery import detect_social_platform, merge_social_p
 
 OPENAI_API_BASE = "https://api.openai.com/v1"
 
+# Process-level key only for optional system/default connection (not per-request)
 _api_key: str | None = None
+# Per-task key so concurrent searches never cross-bill OpenAI accounts
+_request_api_key: contextvars.ContextVar[str | None] = contextvars.ContextVar(
+    "openai_request_api_key", default=None
+)
+
+
+def _active_api_key(explicit: str | None = None) -> str | None:
+    if explicit and explicit.strip():
+        return explicit.strip()
+    ctx = _request_api_key.get()
+    if ctx and ctx.strip():
+        return ctx.strip()
+    return _api_key
 
 
 def is_openai_connected() -> bool:
-    return _api_key is not None
+    return _active_api_key() is not None
 
 
 def get_openai_status() -> dict:
-    if not _api_key:
+    if not _active_api_key():
         return {"connected": False}
     return {"connected": True, "model": settings.openai_model}
 
@@ -214,11 +229,12 @@ def _extract_response_text(payload: dict) -> str:
 
 async def _openai_web_search(prompt: str) -> str | None:
     """ChatGPT-style web search via OpenAI Responses API."""
-    if not _api_key:
+    key = _active_api_key()
+    if not key:
         return None
 
     headers = {
-        "Authorization": f"Bearer {_api_key}",
+        "Authorization": f"Bearer {key}",
         "Content-Type": "application/json",
     }
 
@@ -256,7 +272,7 @@ async def _openai_chat(
     api_key: str | None = None,
     json_mode: bool = True,
 ) -> str | None:
-    key = (api_key or _api_key or "").strip()
+    key = _active_api_key(api_key)
     if not key:
         return None
     payload: dict = {
@@ -292,7 +308,7 @@ async def translate_outreach_email(
     if not lang or lang.lower() in ("english", "en", "en-us", "en-gb"):
         return subject, body
 
-    key = (api_key or _api_key or settings.openai_api_key or "").strip()
+    key = _active_api_key(api_key) or (settings.openai_api_key or "").strip()
     if not key:
         raise ValueError(
             "Connect OpenAI in Integrations to generate emails in other languages."
@@ -428,7 +444,7 @@ async def find_emails_with_openai(business: Business) -> tuple[list[str], str | 
     ChatGPT-style email discovery: OpenAI web search + JSON extraction.
     Returns (emails, source).
     """
-    if not _api_key:
+    if not _active_api_key():
         return [], None
 
     city = _city_from_business(business)
@@ -509,7 +525,7 @@ Only include real emails. Prefer outreach-friendly addresses. Do not invent.
 
 
 async def _fill_business_with_openai(business: Business) -> Business:
-    if not _api_key:
+    if not _active_api_key():
         return business
 
     missing = _missing_fields(business)
@@ -571,14 +587,12 @@ async def enrich_businesses_with_openai(
     api_key: str | None = None,
 ) -> list[Business]:
     """Use OpenAI web search to find emails and fill missing fields."""
-    global _api_key
-    previous_key = _api_key
-    if api_key:
-        _api_key = api_key
-    try:
-        if not is_openai_connected():
-            return businesses
+    key = (api_key or "").strip() or _active_api_key()
+    if not key:
+        return businesses
 
+    token = _request_api_key.set(key)
+    try:
         total = len(businesses)
         results: list[Business] = list(businesses)
         sem = asyncio.Semaphore(3)
@@ -606,4 +620,4 @@ async def enrich_businesses_with_openai(
 
         return results
     finally:
-        _api_key = previous_key
+        _request_api_key.reset(token)

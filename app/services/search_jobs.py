@@ -128,11 +128,11 @@ async def sync_search_job(
     )
 
 
-async def get_search_job(job_id: str, user_id: str | None = None) -> SearchStatus | None:
-    query: dict[str, Any] = {"job_id": job_id}
-    if user_id:
-        query["user_id"] = user_id
-    doc = await get_db()[COLLECTION].find_one(query)
+async def get_search_job(job_id: str, user_id: str) -> SearchStatus | None:
+    """Load a search job; user_id is required so jobs cannot leak across accounts."""
+    if not user_id:
+        return None
+    doc = await get_db()[COLLECTION].find_one({"job_id": job_id, "user_id": user_id})
     return status_from_doc(doc)
 
 

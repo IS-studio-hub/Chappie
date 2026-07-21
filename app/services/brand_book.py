@@ -237,11 +237,13 @@ def _book_from_ai(data: dict, fallback: BrandBook) -> BrandBook:
     )
 
 
-async def _load_cached(place_id: str | None) -> BrandBook | None:
-    if not place_id:
+async def _load_cached(place_id: str | None, user_id: str | None = None) -> BrandBook | None:
+    if not place_id or not user_id:
         return None
     try:
-        doc = await get_db()[CACHE_COLLECTION].find_one({"place_id": place_id})
+        doc = await get_db()[CACHE_COLLECTION].find_one(
+            {"place_id": place_id, "user_id": user_id}
+        )
     except Exception:
         return None
     if not doc or not doc.get("brand_book"):
@@ -252,15 +254,20 @@ async def _load_cached(place_id: str | None) -> BrandBook | None:
         return None
 
 
-async def _save_cached(place_id: str | None, book: BrandBook) -> None:
-    if not place_id:
+async def _save_cached(
+    place_id: str | None,
+    book: BrandBook,
+    user_id: str | None = None,
+) -> None:
+    if not place_id or not user_id:
         return
     try:
         await get_db()[CACHE_COLLECTION].update_one(
-            {"place_id": place_id},
+            {"place_id": place_id, "user_id": user_id},
             {
                 "$set": {
                     "place_id": place_id,
+                    "user_id": user_id,
                     "brand_book": book.model_dump(),
                     "updated_at": datetime.now(timezone.utc),
                 }
@@ -338,9 +345,10 @@ async def build_brand_book_for_business(
     *,
     api_key: str | None = None,
     use_cache: bool = True,
+    user_id: str | None = None,
 ) -> BrandBook:
     if use_cache:
-        cached = await _load_cached(business.place_id)
+        cached = await _load_cached(business.place_id, user_id=user_id)
         if cached and cached.status == "ready":
             return cached
 
@@ -349,7 +357,7 @@ async def build_brand_book_for_business(
     if key:
         book = await _openai_brand_book(business, key, book)
 
-    await _save_cached(business.place_id, book)
+    await _save_cached(business.place_id, book, user_id=user_id)
     return book
 
 
@@ -357,6 +365,7 @@ async def enrich_businesses_with_brand_books(
     businesses: list[Business],
     *,
     api_key: str | None = None,
+    user_id: str | None = None,
     progress_callback=None,
 ) -> list[Business]:
     """Attach a brand book to every business (heuristic, then OpenAI when available)."""
@@ -373,7 +382,9 @@ async def enrich_businesses_with_brand_books(
         nonlocal done
         async with sem:
             try:
-                book = await build_brand_book_for_business(biz, api_key=api_key)
+                book = await build_brand_book_for_business(
+                    biz, api_key=api_key, user_id=user_id
+                )
             except Exception:
                 book = heuristic_brand_book(biz)
             results[idx] = biz.model_copy(update={"brand_book": book})

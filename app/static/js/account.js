@@ -16,6 +16,7 @@ function showToast(msg) {
   const el = document.getElementById("toast");
   el.textContent = msg;
   el.hidden = false;
+  if (window.ChappieA11y) ChappieA11y.announce(msg);
   setTimeout(() => { el.hidden = true; }, 4000);
 }
 
@@ -76,15 +77,20 @@ function renderBilling(events) {
     body.innerHTML = `<tr><td colspan="4" class="muted">No billing activity yet.</td></tr>`;
     return;
   }
+  const esc = (s) => {
+    const d = document.createElement("div");
+    d.textContent = s == null ? "" : String(s);
+    return d.innerHTML;
+  };
   body.innerHTML = events.map((e) => {
     const amt = Number(e.amount_cad || 0);
     const cls = amt >= 0 ? "amount-pos" : "amount-neg";
     const sign = amt > 0 ? "+" : "";
     return `
       <tr>
-        <td>${fmtDate(e.created_at)}</td>
-        <td>${e.type}</td>
-        <td>${e.description || "—"}</td>
+        <td>${esc(fmtDate(e.created_at))}</td>
+        <td>${esc(e.type)}</td>
+        <td>${esc(e.description || "—")}</td>
         <td class="${cls}">${sign}${money(amt)}</td>
       </tr>
     `;

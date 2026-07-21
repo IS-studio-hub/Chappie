@@ -752,14 +752,22 @@ function openPipelineUpgradeModal() {
     goToUpgradePlans();
     return;
   }
-  modal.hidden = false;
-  document.body.style.overflow = "hidden";
+  if (window.ChappieA11y) {
+    ChappieA11y.openDialog(modal);
+  } else {
+    modal.hidden = false;
+    document.body.style.overflow = "hidden";
+  }
 }
 
 function closePipelineUpgradeModal() {
   const modal = document.getElementById("pipelineUpgradeModal");
   if (!modal) return;
-  modal.hidden = true;
+  if (window.ChappieA11y) {
+    ChappieA11y.closeDialog(modal);
+  } else {
+    modal.hidden = true;
+  }
   const emailOpen = document.getElementById("emailModal") && !document.getElementById("emailModal").hidden;
   if (!emailOpen) document.body.style.overflow = "";
 }
@@ -1149,13 +1157,22 @@ function openEmailModal(draft) {
     `${base}${langNote}${designNote}`;
   document.getElementById("emailSendConfirmBtn").disabled = false;
   document.getElementById("emailSendConfirmBtn").textContent = "Send email";
-  modal.hidden = false;
-  document.body.style.overflow = "hidden";
+  if (window.ChappieA11y) {
+    ChappieA11y.openDialog(modal, { focusSelector: "#emailPreviewSubject" });
+  } else {
+    modal.hidden = false;
+    document.body.style.overflow = "hidden";
+  }
 }
 
 function closeEmailModal() {
-  document.getElementById("emailModal").hidden = true;
-  document.body.style.overflow = "";
+  const modal = document.getElementById("emailModal");
+  if (window.ChappieA11y) {
+    ChappieA11y.closeDialog(modal);
+  } else {
+    modal.hidden = true;
+    document.body.style.overflow = "";
+  }
   clearTimeout(emailDesignRenderTimer);
   emailDraft = null;
 }
@@ -1233,6 +1250,11 @@ document.getElementById("emailLogoUrl")?.addEventListener("blur", onEmailLogoUrl
 
 document.addEventListener("keydown", (e) => {
   if (e.key === "Escape") {
+    const createSiteModal = document.getElementById("createSiteModal");
+    if (createSiteModal && !createSiteModal.hidden) {
+      closeCreateSiteModal();
+      return;
+    }
     const campaignModal = document.getElementById("campaignModal");
     if (campaignModal && !campaignModal.hidden) {
       closeCampaignModal();
@@ -1245,6 +1267,11 @@ document.addEventListener("keydown", (e) => {
     }
     if (document.getElementById("emailModal") && !document.getElementById("emailModal").hidden) {
       closeEmailModal();
+      return;
+    }
+    const drawer = document.getElementById("drawer");
+    if (drawer && drawer.classList.contains("open")) {
+      closeDrawer();
     }
   }
 });
@@ -1482,14 +1509,22 @@ function openCampaignModal(index, business) {
   const bar = document.getElementById("campaignProgressBar");
   if (bar) bar.style.width = "18%";
   if (modal) {
-    modal.hidden = false;
-    document.body.style.overflow = "hidden";
+    if (window.ChappieA11y) {
+      ChappieA11y.openDialog(modal, { focusSelector: "#campaignGenerateBtn" });
+    } else {
+      modal.hidden = false;
+      document.body.style.overflow = "hidden";
+    }
   }
 }
 
 function closeCampaignModal() {
   const modal = document.getElementById("campaignModal");
-  if (modal) modal.hidden = true;
+  if (window.ChappieA11y) {
+    ChappieA11y.closeDialog(modal);
+  } else if (modal) {
+    modal.hidden = true;
+  }
   campaignDraft = null;
   const emailOpen = document.getElementById("emailModal") && !document.getElementById("emailModal").hidden;
   const pipelineOpen = document.getElementById("pipelineUpgradeModal") && !document.getElementById("pipelineUpgradeModal").hidden;
@@ -1699,12 +1734,22 @@ function openCreateSiteModal(index, business) {
     }
   }
   syncSiteLanguageUi();
-  if (modal) modal.hidden = false;
+  if (modal) {
+    if (window.ChappieA11y) {
+      ChappieA11y.openDialog(modal, { focusSelector: "#siteLanguage" });
+    } else {
+      modal.hidden = false;
+    }
+  }
 }
 
 function closeCreateSiteModal() {
   const modal = document.getElementById("createSiteModal");
-  if (modal) modal.hidden = true;
+  if (window.ChappieA11y) {
+    ChappieA11y.closeDialog(modal);
+  } else if (modal) {
+    modal.hidden = true;
+  }
   createSiteDraft = null;
 }
 
@@ -1807,6 +1852,7 @@ function setupRadiusSlider() {
   slider.addEventListener("input", () => {
     display.textContent = `${slider.value} km`;
     document.getElementById("radius").value = slider.value;
+    slider.setAttribute("aria-valuenow", slider.value);
   });
 }
 
@@ -2744,7 +2790,15 @@ function openDrawer(index) {
   `;
 
   document.getElementById("drawer").classList.add("open");
+  document.getElementById("drawer").setAttribute("aria-hidden", "false");
   document.getElementById("drawerOverlay").classList.add("open");
+  if (window.ChappieA11y) {
+    const drawer = document.getElementById("drawer");
+    const closeBtn = drawer.querySelector(".drawer-close");
+    try {
+      (closeBtn || drawer).focus({ preventScroll: true });
+    } catch (_) { /* ignore */ }
+  }
 }
 
 function infoRow(label, value) {
@@ -2752,7 +2806,9 @@ function infoRow(label, value) {
 }
 
 function closeDrawer() {
-  document.getElementById("drawer").classList.remove("open");
+  const drawer = document.getElementById("drawer");
+  drawer.classList.remove("open");
+  drawer.setAttribute("aria-hidden", "true");
   document.getElementById("drawerOverlay").classList.remove("open");
   selectedIndex = -1;
   renderView();
@@ -2821,6 +2877,7 @@ function showToast(msg) {
   const toast = document.getElementById("toast");
   toast.textContent = msg;
   toast.classList.add("show");
+  if (window.ChappieA11y) ChappieA11y.announce(msg);
   setTimeout(() => toast.classList.remove("show"), 5000);
 }
 

@@ -47,17 +47,26 @@ function resetPasswordVisibility() {
 function openAuth(mode = "signin") {
   authMode = mode;
   const modal = document.getElementById("authModal");
-  modal.hidden = false;
   document.getElementById("authForm").hidden = false;
   document.getElementById("verifySent").hidden = true;
   document.getElementById("authSwitchRow").hidden = false;
   resetPasswordVisibility();
   syncAuthUi();
   document.getElementById("authError").hidden = true;
+  if (window.ChappieA11y) {
+    ChappieA11y.openDialog(modal, { focusSelector: "#authEmail" });
+  } else {
+    modal.hidden = false;
+  }
 }
 
 function closeAuth() {
-  document.getElementById("authModal").hidden = true;
+  const modal = document.getElementById("authModal");
+  if (window.ChappieA11y) {
+    ChappieA11y.closeDialog(modal);
+  } else {
+    modal.hidden = true;
+  }
   pendingPlan = null;
 }
 
@@ -88,8 +97,17 @@ function showVerifySent(email) {
   document.getElementById("verifySent").hidden = false;
   document.getElementById("authTitle").textContent = "Check your email";
   document.getElementById("authSub").textContent = "";
-  document.getElementById("verifySentText").innerHTML =
-    `We sent a verification link to <strong>${email}</strong>. Click <strong>Verify email</strong> in that message to create your account.`;
+  const el = document.getElementById("verifySentText");
+  el.textContent = "";
+  el.append("We sent a verification link to ");
+  const strong = document.createElement("strong");
+  strong.textContent = email;
+  el.append(strong);
+  el.append(". Click ");
+  const strong2 = document.createElement("strong");
+  strong2.textContent = "Verify email";
+  el.append(strong2);
+  el.append(" in that message to create your account.");
 }
 
 async function submitAuth(event) {
@@ -201,4 +219,11 @@ document.addEventListener("DOMContentLoaded", async () => {
 
 document.getElementById("authModal")?.addEventListener("click", (e) => {
   if (e.target.id === "authModal") closeAuth();
+});
+
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") {
+    const modal = document.getElementById("authModal");
+    if (modal && !modal.hidden) closeAuth();
+  }
 });

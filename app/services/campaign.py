@@ -98,11 +98,17 @@ Sample reviews:
 """
 
 
-async def _ensure_brand_book(business: Business, api_key: str | None) -> Business:
+async def _ensure_brand_book(
+    business: Business,
+    api_key: str | None,
+    user_id: str | None = None,
+) -> Business:
     if business.brand_book and business.brand_book.status == "ready":
         return business
     try:
-        book = await build_brand_book_for_business(business, api_key=api_key)
+        book = await build_brand_book_for_business(
+            business, api_key=api_key, user_id=user_id
+        )
     except Exception:
         book = heuristic_brand_book(business)
     return business.model_copy(update={"brand_book": book})
@@ -367,12 +373,13 @@ async def generate_marketing_campaign(
     *,
     api_key: str,
     goal: str = "auto",
+    user_id: str | None = None,
 ) -> CampaignResponse:
     key = (api_key or "").strip()
     if not key:
         raise ValueError("Connect OpenAI in Integrations before creating a campaign.")
 
-    business = await _ensure_brand_book(business, key)
+    business = await _ensure_brand_book(business, key, user_id=user_id)
     resolved_goal = pick_campaign_goal(business, goal)
     data = await _generate_concept_json(business, resolved_goal, key)
 
