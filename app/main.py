@@ -610,6 +610,31 @@ async def intro():
     return _html("intro.html")
 
 
+@app.get("/privacy", response_class=HTMLResponse)
+async def privacy_policy():
+    return _html("privacy.html")
+
+
+@app.get("/terms", response_class=HTMLResponse)
+async def terms_of_service():
+    return _html("terms.html")
+
+
+@app.get("/refunds", response_class=HTMLResponse)
+async def refund_policy():
+    return _html("refunds.html")
+
+
+@app.get("/cookies", response_class=HTMLResponse)
+async def cookie_policy():
+    return _html("cookies.html")
+
+
+@app.get("/acceptable-use", response_class=HTMLResponse)
+async def acceptable_use_policy():
+    return _html("acceptable-use.html")
+
+
 @app.get("/app", response_class=HTMLResponse)
 async def app_page(user=Depends(get_current_user_optional)):
     if not user:
