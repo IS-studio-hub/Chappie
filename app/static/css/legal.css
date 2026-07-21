@@ -145,36 +145,6 @@ a:hover { color: var(--text); }
   font-size: 0.92rem;
 }
 
-.legal-footer {
-  text-align: center;
-  padding: 2rem 1.5rem 3rem;
-  color: var(--muted);
-  font-size: 0.88rem;
-  border-top: 1px solid var(--border);
-}
-
-.legal-footer nav {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.75rem 1.25rem;
-  justify-content: center;
-  margin-bottom: 1rem;
-}
-
-.legal-footer nav a {
-  color: var(--accent-2);
-  text-decoration: none;
-  font-size: 0.85rem;
-}
-
-.legal-footer nav a:hover { text-decoration: underline; }
-
-.legal-footer p a {
-  color: var(--accent-2);
-  text-decoration: underline;
-  text-underline-offset: 2px;
-}
-
 :focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
