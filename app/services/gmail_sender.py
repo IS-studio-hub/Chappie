@@ -101,7 +101,7 @@ def send_gmail_message(
 
     if not _gmail_user or not _gmail_app_password:
         raise ValueError(
-            "Gmail not connected. Connect Gmail in the Chappie app so verification emails can be sent."
+            "Gmail not connected. Connect Gmail in the CH4PP!3 app so verification emails can be sent."
         )
 
     sender = from_email or _gmail_user or settings.studio_email

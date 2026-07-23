@@ -69,10 +69,10 @@ async def start_email_signup(
         <table width="100%" style="max-width:480px;background:#172231;border:1px solid #2a3a4f;border-radius:14px;padding:32px;">
           <tr>
             <td style="color:#eef3f8;">
-              <p style="margin:0 0 8px;color:#3d9a7a;font-size:12px;letter-spacing:0.12em;text-transform:uppercase;font-weight:600;">Chappie</p>
+              <p style="margin:0 0 8px;color:#3d9a7a;font-size:12px;letter-spacing:0.12em;text-transform:uppercase;font-weight:600;">CH4PP!3</p>
               <h1 style="margin:0 0 12px;font-size:28px;font-weight:600;">Verify your email</h1>
               <p style="margin:0 0 24px;color:#8fa0b5;line-height:1.5;font-size:15px;">
-                Hi {display_name}, thanks for signing up. Click the button below to verify your email and create your Chappie account.
+                Hi {display_name}, thanks for signing up. Click the button below to verify your email and create your CH4PP!3 account.
               </p>
               <p style="margin:0 0 28px;text-align:center;">
                 <a href="{safe_href}"
@@ -81,7 +81,7 @@ async def start_email_signup(
                 </a>
               </p>
               <p style="margin:0 0 12px;color:#8fa0b5;font-size:13px;line-height:1.5;">
-                This link expires in {VERIFY_TOKEN_HOURS} hours. If you did not sign up for Chappie, you can ignore this email.
+                This link expires in {VERIFY_TOKEN_HOURS} hours. If you did not sign up for CH4PP!3, you can ignore this email.
               </p>
               <p style="margin:0;color:#8fa0b5;font-size:12px;">
                 Or paste this link into your browser:<br>
@@ -99,14 +99,14 @@ async def start_email_signup(
 
     plain = (
         f"Hi {raw_name},\n\n"
-        f"Verify your email to create your Chappie account:\n{verify_url}\n\n"
+        f"Verify your email to create your CH4PP!3 account:\n{verify_url}\n\n"
         f"This link expires in {VERIFY_TOKEN_HOURS} hours.\n\n{studio_raw}"
     )
 
     try:
         send_gmail_message(
             to_email=email_norm,
-            subject="Verify your Chappie account",
+            subject="Verify your CH4PP!3 account",
             body=html,
             from_email=settings.studio_email,
             html=True,
@@ -115,7 +115,7 @@ async def start_email_signup(
         # Fallback plain text if HTML send path fails unexpectedly
         send_gmail_message(
             to_email=email_norm,
-            subject="Verify your Chappie account",
+            subject="Verify your CH4PP!3 account",
             body=plain,
             from_email=settings.studio_email,
             html=False,

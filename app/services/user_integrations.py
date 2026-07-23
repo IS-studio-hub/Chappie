@@ -299,7 +299,7 @@ def send_email_as_user(
         if include_list_unsubscribe:
             unsub = (reply_to or sender).strip()
             msg["List-Unsubscribe"] = f"<mailto:{unsub}?subject=unsubscribe>"
-            msg["List-Id"] = f"Chappie Outreach <outreach.{unsub.split('@')[-1] if '@' in unsub else 'local'}>"
+            msg["List-Id"] = f"CH4PP!3 Outreach <outreach.{unsub.split('@')[-1] if '@' in unsub else 'local'}>"
         msg.attach(MIMEText(body, "plain", "utf-8"))
         if html_body:
             msg.attach(MIMEText(html_body, "html", "utf-8"))

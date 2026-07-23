@@ -132,7 +132,7 @@ async def create_checkout_session(user: dict[str, Any], plan_id: str) -> str:
                 "unit_amount": int(round(plan.price_cad * 100)),
                 "recurring": {"interval": "month"},
                 "product_data": {
-                    "name": f"Chappie {plan.name}",
+                    "name": f"CH4PP!3 {plan.name}",
                     "description": (
                         f"{plan.max_searches} searches / month, "
                         f"up to {plan.max_results} businesses per search"

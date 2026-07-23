@@ -377,7 +377,7 @@ def resolve_from_display_name(
     account = (user_name or "").strip()
     if account:
         return account[:80]
-    return (settings.studio_name or "Chappie").strip()[:80]
+    return (settings.studio_name or "CH4PP!3").strip()[:80]
 
 
 def append_compliance_footer(

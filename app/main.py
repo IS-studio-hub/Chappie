@@ -105,7 +105,7 @@ from app.services import rate_limit
 
 _docs_enabled = not settings.is_production
 app = FastAPI(
-    title="Chappie - Business Finder",
+    title="CH4PP!3 - Business Finder",
     description="Find local businesses without websites within a radius of any address",
     version="1.0.0",
     docs_url="/docs" if _docs_enabled else None,

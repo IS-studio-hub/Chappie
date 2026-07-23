@@ -247,7 +247,7 @@ async def _probe_website(client: httpx.AsyncClient, url: str) -> tuple[str | Non
             follow_redirects=True,
             headers={
                 "User-Agent": (
-                    "Mozilla/5.0 (compatible; ChappieBot/1.0; "
+                    "Mozilla/5.0 (compatible; CH4PP!3Bot/1.0; "
                     "+https://github.com/IS-studio-hub/Chappie)"
                 ),
                 "Accept": "text/html,application/xhtml+xml",

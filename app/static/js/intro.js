@@ -83,7 +83,7 @@ function syncAuthUi() {
   document.getElementById("authTitle").textContent = isSignup ? "Create account" : "Sign in";
   document.getElementById("authSub").textContent = isSignup
     ? "We'll email you a verification link to finish signup."
-    : "Welcome back to Chappie.";
+    : "Welcome back to CH4PP!3.";
   document.getElementById("nameField").hidden = !isSignup;
   document.getElementById("authSubmit").textContent = isSignup ? "Sign up" : "Sign in";
   document.getElementById("authSwitchText").textContent = isSignup ? "Already have an account?" : "No account?";

@@ -1,4 +1,4 @@
-# Chappie — Local Business Finder & Outreach
+# CH4PP!3 — Local Business Finder & Outreach
 
 Find local businesses on Google Maps, enrich them, build site concepts in Figma Make, and send outreach from Gmail.
 

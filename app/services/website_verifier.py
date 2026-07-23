@@ -279,7 +279,7 @@ async def verify_businesses_no_website(
 
     headers = {
         "User-Agent": (
-            "Mozilla/5.0 (compatible; ChappieBot/1.0; +https://isexperience.house) "
+            "Mozilla/5.0 (compatible; CH4PP!3Bot/1.0; +https://isexperience.house) "
             "AppleWebKit/537.36"
         ),
         "Accept": "text/html,application/xhtml+xml",

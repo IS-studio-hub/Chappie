@@ -12,7 +12,7 @@ async def _geocode_nominatim(address: str) -> tuple[float, float, str]:
         response = await client.get(
             NOMINATIM_URL,
             params={"q": address, "format": "json", "limit": 1},
-            headers={"User-Agent": "Chappie-Business-Finder/1.0"},
+            headers={"User-Agent": "CH4PP!3-Business-Finder/1.0"},
         )
         response.raise_for_status()
         results = response.json()

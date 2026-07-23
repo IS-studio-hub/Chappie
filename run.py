@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Entry point to run Chappie Business Finder."""
+"""Entry point to run CH4PP!3 Business Finder."""
 import os
 
 import uvicorn

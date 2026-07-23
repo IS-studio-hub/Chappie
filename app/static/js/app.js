@@ -234,7 +234,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     checkGmailStatus();
   }
   if (params.get("verified") === "1") {
-    showToast("Email verified — welcome to Chappie!");
+    showToast("Email verified — welcome to CH4PP!3!");
     window.history.replaceState({}, "", "/app");
   }
   if (params.get("gmail_error")) {

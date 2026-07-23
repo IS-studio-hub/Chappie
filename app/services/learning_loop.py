@@ -272,9 +272,9 @@ async def get_learning_summary(user_id: str) -> dict[str, Any]:
         "deal_count": insights.deal_count,
         "ready": not insights.empty() and len(tops) > 0,
         "message": (
-            "Chappie is boosting categories and cities that convert for you."
+            "CH4PP!3 is boosting categories and cities that convert for you."
             if tops
-            else "Send outreach and mark replies/booked/closed — Chappie will learn what converts."
+            else "Send outreach and mark replies/booked/closed — CH4PP!3 will learn what converts."
         ),
         "winners": tops,
     }
