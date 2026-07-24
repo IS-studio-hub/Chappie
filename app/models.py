@@ -186,6 +186,11 @@ class GmailConnectRequest(BaseModel):
 class SendEmailRequest(BaseModel):
     business: Business
     sender_business_name: str = ""
+    sender_business_website: str = Field(
+        default="",
+        max_length=300,
+        description="Your business website URL for email signatures",
+    )
     sender_business_info: str = ""
     figma_prototype_link: str = ""
     subject: Optional[str] = None
@@ -210,6 +215,11 @@ class SendEmailRequest(BaseModel):
 class PreviewEmailRequest(BaseModel):
     business: Business
     sender_business_name: str = ""
+    sender_business_website: str = Field(
+        default="",
+        max_length=300,
+        description="Your business website URL for email signatures",
+    )
     sender_business_info: str = ""
     figma_prototype_link: str = ""
     language: str = Field(
@@ -224,6 +234,11 @@ class PreviewEmailRequest(BaseModel):
 class RenderEmailRequest(BaseModel):
     business_name: str = ""
     sender_business_name: str = ""
+    sender_business_website: str = Field(
+        default="",
+        max_length=300,
+        description="Your business website URL for email signatures",
+    )
     sender_business_info: str = ""
     figma_prototype_link: str = ""
     body: str = ""

@@ -202,11 +202,19 @@
               </div>
 
               <div class="field" style="margin-top:1rem">
+                <label for="senderBusinessWebsite">Your Business Website</label>
+                <p style="font-size:0.8rem;color:var(--text-muted);margin:0.25rem 0 0.5rem">
+                  Included in outreach email signatures and design when you click Send Email.
+                </p>
+                <input type="url" id="senderBusinessWebsite" maxlength="300" placeholder="https://your-website.com" inputmode="url" autocomplete="url">
+              </div>
+
+              <div class="field" style="margin-top:1rem">
                 <label for="senderBusinessInfo">Your Business Info</label>
                 <p style="font-size:0.8rem;color:var(--text-muted);margin:0.25rem 0 0.5rem">
                   Used when you click Send Email to write a personalized pitch. Max 400 characters.
                 </p>
-                <textarea id="senderBusinessInfo" class="business-info-input" rows="4" maxlength="400" placeholder="https://your-website.com&#10;you@email.com&#10;&#10;Short description of what you offer..."></textarea>
+                <textarea id="senderBusinessInfo" class="business-info-input" rows="4" maxlength="400" placeholder="you@email.com&#10;&#10;Short description of what you offer..."></textarea>
                 <div class="char-count"><span id="senderInfoCount">0</span>/400</div>
               </div>
 
@@ -456,9 +464,16 @@
         </div>
         <div id="campaignResult" hidden></div>
       </div>
-      <div class="email-modal-footer">
+      <div class="email-modal-footer campaign-modal-footer">
         <button type="button" class="btn btn-secondary" onclick="closeCampaignModal()">Close</button>
         <button type="button" class="btn btn-primary" id="campaignGenerateBtn" onclick="confirmGenerateCampaign()">Generate campaign</button>
+        <div class="campaign-result-actions" id="campaignResultActions" hidden>
+          <button type="button" class="btn btn-secondary" id="campaignRegenerateBtn" onclick="regenerateCampaign()">
+            <span class="campaign-btn-spinner" id="campaignRegenerateSpinner" hidden aria-hidden="true"></span>
+            <span id="campaignRegenerateLabel">Regenerate</span>
+          </button>
+          <button type="button" class="btn btn-primary" id="campaignSubmitBtn" onclick="submitCampaign()">Submit</button>
+        </div>
       </div>
     </div>
   </div>

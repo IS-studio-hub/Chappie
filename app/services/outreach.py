@@ -57,12 +57,29 @@ def _city_from_address(address: str | None) -> str:
     return parts[0]
 
 
-def parse_sender_info(sender_info: str, business_name: str = "") -> dict:
+def normalize_business_website(website: str = "") -> str:
+    """Normalize a business website URL; empty if blank."""
+    v = (website or "").strip()
+    if not v:
+        return ""
+    if not re.match(r"^https?://", v, re.I):
+        v = "https://" + v
+    return v[:300].rstrip("/")
+
+
+def parse_sender_info(
+    sender_info: str,
+    business_name: str = "",
+    business_website: str = "",
+) -> dict:
     """Public wrapper for sender Business Info parsing."""
     parsed = _parse_sender_info(sender_info)
     name = (business_name or "").strip()
     if name:
         parsed = {**parsed, "name": name[:80]}
+    url = normalize_business_website(business_website)
+    if url:
+        parsed = {**parsed, "url": url}
     return parsed
 
 
@@ -983,6 +1000,7 @@ def generate_send_email(
     figma_prototype_link: str = "",
     *,
     sender_business_name: str = "",
+    sender_business_website: str = "",
     require_sender_info: bool = True,
     template_id: str = "",
     logo_url: str = "",
@@ -1000,15 +1018,22 @@ def generate_send_email(
 
     contact = _first_name_from_business(business.name)
     city = _city_from_address(business.address)
-    sender = parse_sender_info(sender_info, sender_business_name) if sender_info.strip() else {
+    website = normalize_business_website(sender_business_website)
+    sender = parse_sender_info(
+        sender_info,
+        sender_business_name,
+        website,
+    ) if sender_info.strip() else {
         "name": (sender_business_name or settings.studio_name or "Our studio").strip(),
         "body": "",
-        "url": settings.studio_url or "",
+        "url": website or (settings.studio_url or ""),
         "email": settings.studio_email or "",
         "raw": "",
     }
     if (sender_business_name or "").strip():
         sender["name"] = sender_business_name.strip()[:80]
+    if website:
+        sender["url"] = website
 
     studio_name = sender["name"]
     studio_url = sender.get("url") or ""

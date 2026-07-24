@@ -1234,6 +1234,7 @@ async def render_email_design(request: RenderEmailRequest, user=Depends(require_
     sender = parse_sender_info(
         request.sender_business_info,
         request.sender_business_name,
+        request.sender_business_website,
     )
     html_body = wrap_outreach_plain_as_html(
         request.body,
@@ -1284,6 +1285,7 @@ async def preview_email(request: PreviewEmailRequest, user=Depends(require_user)
             sender_info=request.sender_business_info,
             figma_prototype_link=request.figma_prototype_link,
             sender_business_name=request.sender_business_name,
+            sender_business_website=request.sender_business_website,
             template_id=template_id,
             logo_url=logo_url,
         )
@@ -1296,6 +1298,7 @@ async def preview_email(request: PreviewEmailRequest, user=Depends(require_user)
         sender = parse_sender_info(
             request.sender_business_info,
             request.sender_business_name,
+            request.sender_business_website,
         )
         html_body = wrap_outreach_plain_as_html(
             body,
@@ -1375,6 +1378,7 @@ async def send_email(request: SendEmailRequest, user=Depends(require_user)):
             sender = parse_sender_info(
                 request.sender_business_info,
                 request.sender_business_name,
+                request.sender_business_website,
             )
             html_body = wrap_outreach_plain_as_html(
                 body,
@@ -1396,6 +1400,7 @@ async def send_email(request: SendEmailRequest, user=Depends(require_user)):
                 sender_info=request.sender_business_info,
                 figma_prototype_link=request.figma_prototype_link,
                 sender_business_name=request.sender_business_name,
+                sender_business_website=request.sender_business_website,
                 template_id=template_id,
                 logo_url=logo_url,
             )

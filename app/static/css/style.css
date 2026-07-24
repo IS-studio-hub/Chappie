@@ -1458,6 +1458,42 @@ html, body {
   overflow-y: auto;
 }
 
+.campaign-modal-footer {
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.campaign-result-actions {
+  display: flex;
+  gap: 0.65rem;
+  align-items: center;
+}
+
+.campaign-result-actions .btn {
+  min-width: 7.5rem;
+}
+
+#campaignRegenerateBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+}
+
+.campaign-btn-spinner {
+  width: 0.9rem;
+  height: 0.9rem;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+
+.campaign-result-actions[hidden] {
+  display: none !important;
+}
+
 .campaign-loading-msg {
   color: var(--text-secondary);
   font-size: 0.95rem;

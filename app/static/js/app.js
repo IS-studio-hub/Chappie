@@ -15,6 +15,7 @@ let currentUserId = null;
 const STORAGE_KEYS = {
   senderBusinessName: "chappie_sender_business_name",
   senderInfo: "chappie_sender_business_info",
+  senderWebsite: "chappie_sender_business_website",
   figmaToken: "chappie_figma_token",
   openaiApiKey: "chappie_openai_api_key",
   figmaPrototypeLink: "chappie_figma_prototype_link",
@@ -185,6 +186,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   refreshUsage();
   setupRadiusSlider();
   loadSenderBusinessName();
+  loadSenderWebsite();
   loadSenderInfo();
   loadFigmaPrototypeLink();
   loadSearchSessionFields();
@@ -199,6 +201,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   document.getElementById("filterInput").addEventListener("input", applyFilter);
   document.getElementById("sortSelect").addEventListener("change", applyFilter);
   document.getElementById("senderBusinessName").addEventListener("input", saveSenderBusinessName);
+  document.getElementById("senderBusinessWebsite")?.addEventListener("input", saveSenderWebsite);
   document.getElementById("senderBusinessInfo").addEventListener("input", saveSenderInfo);
   document.getElementById("targetCategories")?.addEventListener("input", saveTargetCategories);
   document.getElementById("advancedFilters")?.addEventListener("change", applyFilter);
@@ -387,6 +390,32 @@ function saveSenderBusinessName() {
 function getSenderBusinessName() {
   const el = document.getElementById("senderBusinessName");
   return el ? el.value.trim().slice(0, 80) : "";
+}
+
+function normalizeBusinessWebsite(value) {
+  let v = (value || "").trim();
+  if (!v) return "";
+  if (!/^https?:\/\//i.test(v)) v = `https://${v}`;
+  return v.slice(0, 300);
+}
+
+function loadSenderWebsite() {
+  const el = document.getElementById("senderBusinessWebsite");
+  if (!el) return;
+  const saved = localStorage.getItem(storageKey(STORAGE_KEYS.senderWebsite));
+  el.value = saved ? saved.slice(0, 300) : "";
+}
+
+function saveSenderWebsite() {
+  const el = document.getElementById("senderBusinessWebsite");
+  if (!el) return;
+  if (el.value.length > 300) el.value = el.value.slice(0, 300);
+  localStorage.setItem(storageKey(STORAGE_KEYS.senderWebsite), el.value.trim());
+}
+
+function getSenderWebsite() {
+  const el = document.getElementById("senderBusinessWebsite");
+  return normalizeBusinessWebsite(el ? el.value : "");
 }
 
 function loadSenderInfo() {
@@ -638,6 +667,7 @@ async function fetchEmailPreview(business, language) {
     body: JSON.stringify({
       business,
       sender_business_name: getSenderBusinessName(),
+      sender_business_website: getSenderWebsite(),
       sender_business_info: getSenderInfo(),
       figma_prototype_link: getFigmaPrototypeLink(),
       language: language || "English",
@@ -940,6 +970,7 @@ async function refreshEmailDesignPreview() {
       body: JSON.stringify({
         business_name: emailDraft.business?.name || "",
         sender_business_name: getSenderBusinessName(),
+        sender_business_website: getSenderWebsite(),
         sender_business_info: getSenderInfo(),
         figma_prototype_link: getFigmaPrototypeLink(),
         body,
@@ -1013,6 +1044,10 @@ async function sendEmail(index) {
       from_name: data.from_name || "",
       from_email: data.from_email || "",
     };
+    const submitted = getSubmittedCampaign(business);
+    if (submitted) {
+      emailDraft.body = mergeCampaignIntoEmailBody(emailDraft.body, submitted);
+    }
     if (data.templates?.length) emailTemplatesCache = data.templates;
     openEmailModal(emailDraft);
   } catch (e) {
@@ -1049,6 +1084,10 @@ async function regenerateEmailLanguage() {
     emailDraft.language = data.language || language;
     emailDraft.template_id = data.template_id || emailDraft.template_id;
     emailDraft.recipients = data.recipients || emailDraft.recipients;
+    const submitted = getSubmittedCampaign(emailDraft.business);
+    if (submitted) {
+      emailDraft.body = mergeCampaignIntoEmailBody(emailDraft.body, submitted);
+    }
     if (data.templates?.length) emailTemplatesCache = data.templates;
     if (data.from_name) emailDraft.from_name = data.from_name;
     if (data.from_email) emailDraft.from_email = data.from_email;
@@ -1199,6 +1238,7 @@ async function confirmSendEmail() {
       body: JSON.stringify({
         business: emailDraft.business,
         sender_business_name: getSenderBusinessName(),
+        sender_business_website: getSenderWebsite(),
         sender_business_info: getSenderInfo(),
         figma_prototype_link: getFigmaPrototypeLink(),
         subject,
@@ -1471,9 +1511,82 @@ async function createSite(index) {
 
 let campaignDraft = null; // { index, business }
 let campaignResult = null;
+let campaignGenerating = false;
+/** @type {Record<string, object>} */
+const submittedCampaignByKey = {};
+
+const CAMPAIGN_EMAIL_START = "—— Marketing campaign ——";
+const CAMPAIGN_EMAIL_END = "—— End campaign ——";
 
 function isLargePlan() {
   return String(usageInfo?.plan || "").toLowerCase() === "large";
+}
+
+function campaignStorageKey(business) {
+  if (!business) return "";
+  return String(business.place_id || business.name || "").trim();
+}
+
+function getSubmittedCampaign(business) {
+  const key = campaignStorageKey(business);
+  if (!key) return null;
+  return submittedCampaignByKey[key] || business?.submitted_campaign || null;
+}
+
+function campaignButtonLabel(business) {
+  return getSubmittedCampaign(business) ? "Replace my campaign" : "Create Campaign";
+}
+
+function setCampaignFooterMode(mode) {
+  const genBtn = document.getElementById("campaignGenerateBtn");
+  const actions = document.getElementById("campaignResultActions");
+  const regenBtn = document.getElementById("campaignRegenerateBtn");
+  const submitBtn = document.getElementById("campaignSubmitBtn");
+  const spinner = document.getElementById("campaignRegenerateSpinner");
+  const regenLabel = document.getElementById("campaignRegenerateLabel");
+
+  if (mode === "setup") {
+    if (genBtn) {
+      genBtn.hidden = false;
+      genBtn.disabled = false;
+      genBtn.textContent = "Generate campaign";
+    }
+    if (actions) actions.hidden = true;
+    if (regenBtn) regenBtn.disabled = false;
+    if (submitBtn) submitBtn.disabled = false;
+    if (spinner) spinner.hidden = true;
+    if (regenLabel) regenLabel.textContent = "Regenerate";
+    return;
+  }
+
+  if (mode === "loading") {
+    if (genBtn) {
+      genBtn.hidden = false;
+      genBtn.disabled = true;
+      genBtn.textContent = "Generating…";
+    }
+    if (actions) actions.hidden = true;
+    return;
+  }
+
+  if (mode === "result") {
+    if (genBtn) genBtn.hidden = true;
+    if (actions) actions.hidden = false;
+    if (regenBtn) regenBtn.disabled = false;
+    if (submitBtn) submitBtn.disabled = false;
+    if (spinner) spinner.hidden = true;
+    if (regenLabel) regenLabel.textContent = "Regenerate";
+    return;
+  }
+
+  if (mode === "regenerating") {
+    if (genBtn) genBtn.hidden = true;
+    if (actions) actions.hidden = false;
+    if (regenBtn) regenBtn.disabled = true;
+    if (submitBtn) submitBtn.disabled = true;
+    if (spinner) spinner.hidden = false;
+    if (regenLabel) regenLabel.textContent = "Regenerating…";
+  }
 }
 
 function createCampaign(index) {
@@ -1493,6 +1606,7 @@ function createCampaign(index) {
 function openCampaignModal(index, business) {
   campaignDraft = { index, business };
   campaignResult = null;
+  campaignGenerating = false;
   const modal = document.getElementById("campaignModal");
   const sub = document.getElementById("campaignModalSub");
   if (sub) sub.textContent = `Campaign for ${business.name}`;
@@ -1500,12 +1614,7 @@ function openCampaignModal(index, business) {
   document.getElementById("campaignLoading").hidden = true;
   document.getElementById("campaignResult").hidden = true;
   document.getElementById("campaignResult").innerHTML = "";
-  const genBtn = document.getElementById("campaignGenerateBtn");
-  if (genBtn) {
-    genBtn.hidden = false;
-    genBtn.disabled = false;
-    genBtn.textContent = "Generate campaign";
-  }
+  setCampaignFooterMode("setup");
   const bar = document.getElementById("campaignProgressBar");
   if (bar) bar.style.width = "18%";
   if (modal) {
@@ -1519,6 +1628,10 @@ function openCampaignModal(index, business) {
 }
 
 function closeCampaignModal() {
+  if (campaignGenerating) {
+    showToast("Please wait for the campaign to finish generating.");
+    return;
+  }
   const modal = document.getElementById("campaignModal");
   if (window.ChappieA11y) {
     ChappieA11y.closeDialog(modal);
@@ -1609,8 +1722,138 @@ function renderCampaignResult(data) {
   `;
 }
 
+function formatCampaignForEmail(data) {
+  if (!data) return "";
+  const goalLabel = ({
+    awareness: "Awareness",
+    leads: "Leads / inquiries",
+    engagement: "Engagement",
+  })[data.goal] || data.goal || "Campaign";
+
+  const lines = [
+    CAMPAIGN_EMAIL_START,
+    "",
+    `Concept: ${data.concept_title || "Campaign"}`,
+    `Goal: ${goalLabel}`,
+  ];
+  if (data.concept_summary) lines.push("", data.concept_summary);
+  if (data.hook) lines.push("", `Hook: ${data.hook}`);
+  if (data.primary_cta) lines.push(`Primary CTA: ${data.primary_cta}`);
+  if (data.why_it_works) lines.push(`Why it works: ${data.why_it_works}`);
+
+  const posts = data.static_posts || [];
+  if (posts.length) {
+    lines.push("", "STATIC POSTS");
+    posts.forEach((p, i) => {
+      const tags = (p.hashtags || [])
+        .map((t) => `#${String(t).replace(/^#/, "")}`)
+        .join(" ");
+      lines.push("", `${i + 1}. ${p.title || `Post ${p.id || i + 1}`}`);
+      if (p.caption) lines.push(`Caption: ${p.caption}`);
+      if (p.cta) lines.push(`CTA: ${p.cta}`);
+      if (tags) lines.push(`Hashtags: ${tags}`);
+      if (p.image_url) lines.push(`Image: ${p.image_url}`);
+    });
+  }
+
+  const reels = data.reels || [];
+  if (reels.length) {
+    lines.push("", "REELS");
+    reels.forEach((r, i) => {
+      const overlays = (r.on_screen_text || []).join(" · ");
+      lines.push(
+        "",
+        `${i + 1}. ${r.title || `Reel ${r.id || i + 1}`} (${Number(r.duration_sec || 30)}s)`,
+      );
+      if (r.hook) lines.push(`Hook: ${r.hook}`);
+      if (r.script) lines.push(`Script: ${r.script}`);
+      if (overlays) lines.push(`On-screen: ${overlays}`);
+      if (r.cta) lines.push(`CTA: ${r.cta}`);
+    });
+  }
+
+  lines.push("", CAMPAIGN_EMAIL_END);
+  return lines.join("\n");
+}
+
+function stripCampaignFromEmailBody(body) {
+  const text = body || "";
+  const start = text.indexOf(CAMPAIGN_EMAIL_START);
+  if (start === -1) return text.trimEnd();
+  const end = text.indexOf(CAMPAIGN_EMAIL_END, start);
+  if (end === -1) {
+    return (text.slice(0, start) + text.slice(start).replace(CAMPAIGN_EMAIL_START, "")).trimEnd();
+  }
+  return (text.slice(0, start) + text.slice(end + CAMPAIGN_EMAIL_END.length)).replace(/\n{3,}/g, "\n\n").trimEnd();
+}
+
+function mergeCampaignIntoEmailBody(body, campaignData) {
+  const base = stripCampaignFromEmailBody(body);
+  const block = formatCampaignForEmail(campaignData);
+  if (!block) return base;
+  return `${base}\n\n${block}`.trim();
+}
+
+function applyCampaignToOpenEmail(campaignData, business) {
+  if (!emailDraft || !campaignData) return;
+  const sameBusiness =
+    (emailDraft.business?.place_id && business?.place_id
+      && emailDraft.business.place_id === business.place_id)
+    || emailDraft.business?.name === business?.name;
+  if (!sameBusiness) return;
+
+  emailDraft.body = mergeCampaignIntoEmailBody(emailDraft.body || "", campaignData);
+  const bodyEl = document.getElementById("emailPreviewBody");
+  if (bodyEl) bodyEl.value = emailDraft.body;
+  if (canCustomizeEmailDesign()) scheduleEmailDesignRender();
+}
+
+function persistSubmittedCampaign(business, data) {
+  if (!business || !data) return;
+  const key = campaignStorageKey(business);
+  if (key) submittedCampaignByKey[key] = data;
+  business.submitted_campaign = data;
+
+  const syncList = (list) => {
+    if (!Array.isArray(list)) return;
+    list.forEach((b) => {
+      if (!b) return;
+      const match = (b.place_id && business.place_id && b.place_id === business.place_id)
+        || (!business.place_id && b.name === business.name);
+      if (match) b.submitted_campaign = data;
+    });
+  };
+  syncList(filteredBusinesses);
+  syncList(allBusinesses);
+}
+
+function updateCampaignCardButton(index) {
+  const business = filteredBusinesses[index];
+  const btn = document.querySelector(`[data-campaign="${index}"]`);
+  if (btn) btn.textContent = campaignButtonLabel(business);
+}
+
+async function requestCampaignGenerate(goal) {
+  const { brand_book, ...rest } = campaignDraft.business || {};
+  const businessPayload = brand_book
+    ? { ...rest, brand_book: { ...brand_book, logo_svg: undefined } }
+    : rest;
+
+  const res = await fetch("/api/campaign/generate", {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ business: businessPayload, goal }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(typeof data.detail === "string" ? data.detail : "Campaign generation failed");
+  }
+  return data;
+}
+
 async function confirmGenerateCampaign() {
-  if (!campaignDraft?.business) return;
+  if (!campaignDraft?.business || campaignGenerating) return;
   if (!isLargePlan()) {
     showToast("Campaigns are available on Large Biz only.");
     return;
@@ -1624,20 +1867,17 @@ async function confirmGenerateCampaign() {
   const setup = document.getElementById("campaignSetup");
   const loading = document.getElementById("campaignLoading");
   const resultEl = document.getElementById("campaignResult");
-  const genBtn = document.getElementById("campaignGenerateBtn");
   const msg = document.getElementById("campaignLoadingMsg");
   const bar = document.getElementById("campaignProgressBar");
 
+  campaignGenerating = true;
   if (setup) setup.hidden = true;
   if (loading) loading.hidden = false;
   if (resultEl) {
     resultEl.hidden = true;
     resultEl.innerHTML = "";
   }
-  if (genBtn) {
-    genBtn.disabled = true;
-    genBtn.textContent = "Generating…";
-  }
+  setCampaignFooterMode("loading");
   if (msg) msg.textContent = "Writing campaign concept from brand + business data…";
   if (bar) bar.style.width = "28%";
 
@@ -1648,23 +1888,8 @@ async function confirmGenerateCampaign() {
   }, 1200);
 
   try {
-    // Drop heavy brand SVG from payload; server rebuilds brand book if needed
-    const { brand_book, ...rest } = campaignDraft.business || {};
-    const businessPayload = brand_book
-      ? { ...rest, brand_book: { ...brand_book, logo_svg: undefined } }
-      : rest;
-
     if (msg) msg.textContent = "Creating 5 post captions, 5 reel scripts, and 5 text-free images…";
-    const res = await fetch("/api/campaign/generate", {
-      method: "POST",
-      credentials: "include",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ business: businessPayload, goal }),
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      throw new Error(typeof data.detail === "string" ? data.detail : "Campaign generation failed");
-    }
+    const data = await requestCampaignGenerate(goal);
     campaignResult = data;
     if (bar) bar.style.width = "100%";
     if (loading) loading.hidden = true;
@@ -1672,22 +1897,69 @@ async function confirmGenerateCampaign() {
       resultEl.hidden = false;
       resultEl.innerHTML = renderCampaignResult(data);
     }
-    if (genBtn) {
-      genBtn.hidden = true;
-    }
+    setCampaignFooterMode("result");
     showToast("Campaign ready.");
   } catch (e) {
     if (loading) loading.hidden = true;
     if (setup) setup.hidden = false;
-    if (genBtn) {
-      genBtn.disabled = false;
-      genBtn.textContent = "Generate campaign";
-      genBtn.hidden = false;
-    }
+    setCampaignFooterMode("setup");
     showToast(e.message || "Campaign generation failed");
   } finally {
     clearInterval(progressTimer);
+    campaignGenerating = false;
   }
+}
+
+async function regenerateCampaign() {
+  if (!campaignDraft?.business || campaignGenerating) return;
+  if (!isLargePlan()) {
+    showToast("Campaigns are available on Large Biz only.");
+    return;
+  }
+  if (!openaiConnected) {
+    showToast("Connect OpenAI in Integrations first.");
+    return;
+  }
+
+  const goal = document.getElementById("campaignGoal")?.value || "auto";
+  const resultEl = document.getElementById("campaignResult");
+
+  campaignGenerating = true;
+  setCampaignFooterMode("regenerating");
+
+  try {
+    const data = await requestCampaignGenerate(goal);
+    campaignResult = data;
+    if (resultEl) {
+      resultEl.hidden = false;
+      resultEl.innerHTML = renderCampaignResult(data);
+      resultEl.scrollTop = 0;
+      document.getElementById("campaignModalBody")?.scrollTo?.(0, 0);
+    }
+    setCampaignFooterMode("result");
+    showToast("New campaign ready.");
+  } catch (e) {
+    setCampaignFooterMode("result");
+    showToast(e.message || "Campaign regeneration failed");
+  } finally {
+    campaignGenerating = false;
+  }
+}
+
+function submitCampaign() {
+  if (!campaignDraft?.business || !campaignResult) {
+    showToast("Generate a campaign before submitting.");
+    return;
+  }
+  if (campaignGenerating) return;
+
+  const { index, business } = campaignDraft;
+  persistSubmittedCampaign(business, campaignResult);
+  applyCampaignToOpenEmail(campaignResult, business);
+  updateCampaignCardButton(index);
+  showToast("Campaign added to the email.");
+  campaignGenerating = false;
+  closeCampaignModal();
 }
 
 let createSiteDraft = null; // { index, business }
@@ -2566,7 +2838,7 @@ function renderCard(b, index) {
           ${openaiConnected ? "" : "disabled"}
           onclick="event.stopPropagation(); createCampaign(${index})"
           title="${openaiConnected ? "Generate a social campaign" : "Connect OpenAI in Integrations first"}"
-        >Create Campaign</button>
+        >${campaignButtonLabel(b)}</button>
         ` : ""}
         ${emails.length ? `
         <button
