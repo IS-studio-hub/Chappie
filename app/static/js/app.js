@@ -1545,43 +1545,36 @@ function setCampaignFooterMode(mode) {
   const spinner = document.getElementById("campaignRegenerateSpinner");
   const regenLabel = document.getElementById("campaignRegenerateLabel");
 
-  if (mode === "setup") {
-    if (genBtn) {
-      genBtn.hidden = false;
+  const showGenerate = mode === "setup" || mode === "loading";
+  const showResultActions = mode === "result" || mode === "regenerating";
+
+  if (genBtn) {
+    genBtn.hidden = !showGenerate;
+    genBtn.style.display = showGenerate ? "" : "none";
+    genBtn.setAttribute("aria-hidden", showGenerate ? "false" : "true");
+    if (mode === "setup") {
       genBtn.disabled = false;
       genBtn.textContent = "Generate campaign";
-    }
-    if (actions) actions.hidden = true;
-    if (regenBtn) regenBtn.disabled = false;
-    if (submitBtn) submitBtn.disabled = false;
-    if (spinner) spinner.hidden = true;
-    if (regenLabel) regenLabel.textContent = "Regenerate";
-    return;
-  }
-
-  if (mode === "loading") {
-    if (genBtn) {
-      genBtn.hidden = false;
+    } else if (mode === "loading") {
       genBtn.disabled = true;
       genBtn.textContent = "Generating…";
     }
-    if (actions) actions.hidden = true;
-    return;
   }
 
-  if (mode === "result") {
-    if (genBtn) genBtn.hidden = true;
-    if (actions) actions.hidden = false;
+  if (actions) {
+    actions.hidden = !showResultActions;
+    actions.style.display = showResultActions ? "flex" : "none";
+    actions.setAttribute("aria-hidden", showResultActions ? "false" : "true");
+  }
+
+  if (mode === "result" || mode === "setup") {
     if (regenBtn) regenBtn.disabled = false;
     if (submitBtn) submitBtn.disabled = false;
     if (spinner) spinner.hidden = true;
     if (regenLabel) regenLabel.textContent = "Regenerate";
-    return;
   }
 
   if (mode === "regenerating") {
-    if (genBtn) genBtn.hidden = true;
-    if (actions) actions.hidden = false;
     if (regenBtn) regenBtn.disabled = true;
     if (submitBtn) submitBtn.disabled = true;
     if (spinner) spinner.hidden = false;

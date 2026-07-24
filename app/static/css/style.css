@@ -392,6 +392,12 @@ html, body {
   white-space: nowrap;
 }
 
+/* Author CSS display rules beat the UA [hidden] stylesheet — force hide. */
+.btn[hidden],
+button.btn[hidden] {
+  display: none !important;
+}
+
 .btn-primary {
   width: 100%;
   background: var(--accent);
@@ -1459,18 +1465,32 @@ html, body {
 }
 
 .campaign-modal-footer {
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
+  gap: 0.65rem;
+}
+
+.campaign-modal-footer .btn-primary {
+  width: auto;
+  flex: 0 0 auto;
+  padding: 0.7rem 1.25rem;
+  font-size: 0.95rem;
+}
+
+.campaign-modal-footer #campaignGenerateBtn {
+  margin-left: auto;
 }
 
 .campaign-result-actions {
   display: flex;
   gap: 0.65rem;
   align-items: center;
+  margin-left: auto;
 }
 
 .campaign-result-actions .btn {
   min-width: 7.5rem;
+  width: auto;
 }
 
 #campaignRegenerateBtn {
@@ -1490,7 +1510,8 @@ html, body {
   flex-shrink: 0;
 }
 
-.campaign-result-actions[hidden] {
+.campaign-result-actions[hidden],
+#campaignGenerateBtn[hidden] {
   display: none !important;
 }
 
