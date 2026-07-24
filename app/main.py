@@ -124,7 +124,13 @@ EMAIL_RESULT_MIN_RATIO = 0.60
 
 
 def _html(name: str) -> HTMLResponse:
-    return HTMLResponse(content=(STATIC_DIR / name).read_text(encoding="utf-8"))
+    return HTMLResponse(
+        content=(STATIC_DIR / name).read_text(encoding="utf-8"),
+        headers={
+            "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+            "Pragma": "no-cache",
+        },
+    )
 
 
 @app.on_event("startup")
