@@ -1255,6 +1255,7 @@ async def render_email_design(request: RenderEmailRequest, user=Depends(require_
         prototype_url=request.figma_prototype_link,
         template_id=template_id,
         logo_url=logo_url,
+        marketing_campaign=request.marketing_campaign,
     )
     return {
         "html_body": html_body,
@@ -1319,6 +1320,7 @@ async def preview_email(request: PreviewEmailRequest, user=Depends(require_user)
             prototype_url=request.figma_prototype_link,
             template_id=template_id,
             logo_url=logo_url,
+            marketing_campaign=request.marketing_campaign,
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -1399,6 +1401,7 @@ async def send_email(request: SendEmailRequest, user=Depends(require_user)):
                 prototype_url=request.figma_prototype_link,
                 template_id=template_id,
                 logo_url=logo_url,
+                marketing_campaign=request.marketing_campaign,
             )
         else:
             subject, body, html_body = generate_send_email(

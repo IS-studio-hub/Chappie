@@ -3,8 +3,12 @@ import html
 import re
 
 from app.config import settings
-from app.models import Business
+from app.models import Business, CampaignResponse
 from app.services.email_templates import DEFAULT_TEMPLATE_ID, get_email_template, list_email_templates
+
+
+CAMPAIGN_PLAIN_START = "—— Marketing campaign ——"
+CAMPAIGN_PLAIN_END = "—— End campaign ——"
 
 
 
@@ -422,6 +426,144 @@ _FIGMA_URL_RE = re.compile(
 )
 
 
+def strip_campaign_plain_block(plain_body: str) -> str:
+    """Remove the client-side campaign text block so HTML can render it separately."""
+    text = plain_body or ""
+    start = text.find(CAMPAIGN_PLAIN_START)
+    if start == -1:
+        return text
+    end = text.find(CAMPAIGN_PLAIN_END, start)
+    if end == -1:
+        return (text[:start] + text[start:].replace(CAMPAIGN_PLAIN_START, "")).strip()
+    cleaned = (text[:start] + text[end + len(CAMPAIGN_PLAIN_END) :]).strip()
+    return re.sub(r"\n{3,}", "\n\n", cleaned).strip()
+
+
+def build_marketing_campaign_html(
+    campaign: CampaignResponse | dict | None,
+    *,
+    template_id: str = "",
+) -> str:
+    """HTML block with concept + each static post image and copy for the email bottom."""
+    if not campaign:
+        return ""
+    if isinstance(campaign, dict):
+        try:
+            campaign = CampaignResponse.model_validate(campaign)
+        except Exception:
+            return ""
+
+    theme = get_email_template(template_id)
+    posts = list(campaign.static_posts or [])
+    if not posts and not (campaign.concept_title or campaign.concept_summary):
+        return ""
+
+    goal_labels = {
+        "awareness": "Awareness",
+        "leads": "Leads / inquiries",
+        "engagement": "Engagement",
+    }
+    goal = goal_labels.get(campaign.goal, campaign.goal or "Campaign")
+    title = html.escape(campaign.concept_title or "Marketing campaign")
+    summary = html.escape(campaign.concept_summary or "").replace("\n", "<br>\n")
+    hook = html.escape(campaign.hook or "")
+    primary_cta = html.escape(campaign.primary_cta or "")
+
+    header_bits = [
+        f"""
+              <p style="margin:0 0 6px;color:{theme['eyebrow']};font-size:11px;letter-spacing:0.14em;text-transform:uppercase;font-weight:700;">
+                Suggested marketing campaign
+              </p>
+              <h2 style="margin:0 0 8px;font-size:18px;font-weight:600;line-height:1.3;color:{theme['heading']};">{title}</h2>
+              <p style="margin:0 0 10px;color:{theme['muted']};font-size:12px;font-weight:600;letter-spacing:0.04em;text-transform:uppercase;">{html.escape(goal)}</p>
+        """
+    ]
+    if summary:
+        header_bits.append(
+            f'<p style="margin:0 0 10px;color:{theme["body"]};line-height:1.55;font-size:14px;">{summary}</p>'
+        )
+    if hook:
+        header_bits.append(
+            f'<p style="margin:0 0 8px;color:{theme["body"]};line-height:1.5;font-size:14px;"><strong style="color:{theme["heading"]};">Hook:</strong> {hook}</p>'
+        )
+    if primary_cta:
+        header_bits.append(
+            f'<p style="margin:0 0 16px;color:{theme["body"]};line-height:1.5;font-size:14px;"><strong style="color:{theme["heading"]};">Primary CTA:</strong> {primary_cta}</p>'
+        )
+
+    post_blocks: list[str] = []
+    for i, post in enumerate(posts):
+        post_title = html.escape(post.title or f"Post {post.id or i + 1}")
+        caption = html.escape(post.caption or "").replace("\n", "<br>\n")
+        cta = html.escape(post.cta or "")
+        tags = " ".join(
+            f"#{html.escape(str(t).lstrip('#'))}" for t in (post.hashtags or []) if t
+        )
+        img_src = (post.image_url or "").strip()
+        img_ok = img_src.startswith("https://") or img_src.startswith("http://") or img_src.startswith("data:image/")
+        if img_ok:
+            img_html = f"""
+                    <img src="{html.escape(img_src, quote=True)}"
+                         alt="{post_title}"
+                         width="420"
+                         style="display:block;width:100%;max-width:420px;height:auto;border:0;outline:none;border-radius:10px;">
+            """
+        else:
+            note = html.escape(post.image_error or "Image unavailable")
+            img_html = f"""
+                    <div style="padding:28px 16px;text-align:center;background:{theme['page_bg']};border:1px dashed {theme['card_border']};border-radius:10px;color:{theme['muted']};font-size:13px;">
+                      {note}
+                    </div>
+            """
+
+        meta_bits = []
+        if caption:
+            meta_bits.append(
+                f'<p style="margin:0 0 8px;color:{theme["body"]};line-height:1.55;font-size:14px;">{caption}</p>'
+            )
+        if cta:
+            meta_bits.append(
+                f'<p style="margin:0 0 6px;color:{theme["body"]};font-size:13px;"><strong style="color:{theme["heading"]};">CTA:</strong> {cta}</p>'
+            )
+        if tags:
+            meta_bits.append(
+                f'<p style="margin:0;color:{theme["muted"]};font-size:12px;line-height:1.45;">{tags}</p>'
+            )
+
+        post_blocks.append(
+            f"""
+              <table width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 18px;border:1px solid {theme['card_border']};border-radius:12px;overflow:hidden;background:{theme['card_bg']};">
+                <tr>
+                  <td style="padding:12px 12px 8px;color:{theme['heading']};font-size:14px;font-weight:700;">
+                    Post {i + 1}: {post_title}
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:0 12px 12px;">
+                    {img_html}
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:0 12px 14px;">
+                    {''.join(meta_bits) or f'<p style="margin:0;color:{theme["muted"]};font-size:13px;">No caption</p>'}
+                  </td>
+                </tr>
+              </table>
+            """
+        )
+
+    return f"""
+              <table width="100%" cellpadding="0" cellspacing="0" style="margin:28px 0 0;border-top:1px solid {theme['card_border']};">
+                <tr>
+                  <td style="padding-top:22px;">
+                    {''.join(header_bits)}
+                    {''.join(post_blocks)}
+                  </td>
+                </tr>
+              </table>
+    """
+
+
 def build_outreach_email_html(
     *,
     studio_name: str,
@@ -436,6 +578,7 @@ def build_outreach_email_html(
     after_cta_html: str = "",
     template_id: str = "",
     logo_url: str = "",
+    campaign_html: str = "",
 ) -> str:
     """Designed HTML card email using a selected color template."""
     theme = get_email_template(template_id)
@@ -514,6 +657,7 @@ def build_outreach_email_html(
               {body_sections_html}
               {cta}
               {after}
+              {campaign_html}
               <p style="margin:24px 0 0;color:{theme['muted']};font-size:13px;line-height:1.5;">Best regards,</p>
               <p style="margin:6px 0 0;color:{theme['muted']};font-size:13px;line-height:1.6;">{sig_html}</p>
               <p style="margin:24px 0 0;color:{theme['muted']};font-size:12px;line-height:1.5;">
@@ -539,10 +683,11 @@ def wrap_outreach_plain_as_html(
     prototype_url: str = "",
     template_id: str = "",
     logo_url: str = "",
+    marketing_campaign: CampaignResponse | dict | None = None,
 ) -> str:
     """Wrap an edited plain-text body in the designed card; turn Figma links into a CTA."""
     theme = get_email_template(template_id)
-    text = (plain_body or "").strip()
+    text = strip_campaign_plain_block(plain_body or "").strip()
     proto = (prototype_url or "").strip()
     if not proto:
         m = _FIGMA_URL_RE.search(text)
@@ -615,6 +760,11 @@ def wrap_outreach_plain_as_html(
                 + "</p>"
             )
 
+    campaign_html = build_marketing_campaign_html(
+        marketing_campaign,
+        template_id=template_id,
+    )
+
     return build_outreach_email_html(
         studio_name=studio_name,
         intro=intro_clean or intro,
@@ -625,6 +775,7 @@ def wrap_outreach_plain_as_html(
         business_name=business_name,
         template_id=template_id,
         logo_url=logo_url,
+        campaign_html=campaign_html,
     )
 
 

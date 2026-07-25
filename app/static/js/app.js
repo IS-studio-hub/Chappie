@@ -659,6 +659,41 @@ function applyEmailTextDirection(language) {
   }
 }
 
+function campaignPayloadForEmail(business) {
+  const campaign = getSubmittedCampaign(business);
+  if (!campaign) return null;
+  // Drop heavy fields unused in email rendering
+  const posts = (campaign.static_posts || []).map((p) => ({
+    id: p.id,
+    title: p.title || "",
+    caption: p.caption || "",
+    hashtags: p.hashtags || [],
+    cta: p.cta || "",
+    image_url: p.image_url || null,
+    image_error: p.image_error || null,
+  }));
+  return {
+    business_name: campaign.business_name || business?.name || "",
+    goal: campaign.goal || "",
+    concept_title: campaign.concept_title || "",
+    concept_summary: campaign.concept_summary || "",
+    hook: campaign.hook || "",
+    primary_cta: campaign.primary_cta || "",
+    why_it_works: campaign.why_it_works || "",
+    brand_notes: campaign.brand_notes || "",
+    static_posts: posts,
+    reels: (campaign.reels || []).map((r) => ({
+      id: r.id,
+      title: r.title || "",
+      hook: r.hook || "",
+      script: r.script || "",
+      on_screen_text: r.on_screen_text || [],
+      cta: r.cta || "",
+      duration_sec: r.duration_sec || 30,
+    })),
+  };
+}
+
 async function fetchEmailPreview(business, language) {
   const res = await fetch("/api/email/preview", {
     method: "POST",
@@ -673,6 +708,7 @@ async function fetchEmailPreview(business, language) {
       language: language || "English",
       template_id: getEmailTemplateId(),
       logo_url: getEmailLogoUrl(),
+      marketing_campaign: campaignPayloadForEmail(business),
     }),
   });
   const data = await res.json().catch(() => ({}));
@@ -976,6 +1012,7 @@ async function refreshEmailDesignPreview() {
         body,
         template_id: getEmailTemplateId(),
         logo_url: getEmailLogoUrl(),
+        marketing_campaign: campaignPayloadForEmail(emailDraft.business),
       }),
     });
     const data = await res.json().catch(() => ({}));
@@ -1246,6 +1283,7 @@ async function confirmSendEmail() {
         recipients: emailDraft.recipients,
         template_id: getEmailTemplateId(),
         logo_url: getEmailLogoUrl(),
+        marketing_campaign: campaignPayloadForEmail(emailDraft.business),
         include_open_tracking: !!document.getElementById("emailTrackOpens")?.checked,
         include_unsubscribe_footer: document.getElementById("emailUnsubFooter")
           ? !!document.getElementById("emailUnsubFooter").checked
@@ -1726,13 +1764,13 @@ function formatCampaignForEmail(data) {
   const lines = [
     CAMPAIGN_EMAIL_START,
     "",
+    "Suggested marketing campaign",
     `Concept: ${data.concept_title || "Campaign"}`,
     `Goal: ${goalLabel}`,
   ];
   if (data.concept_summary) lines.push("", data.concept_summary);
   if (data.hook) lines.push("", `Hook: ${data.hook}`);
   if (data.primary_cta) lines.push(`Primary CTA: ${data.primary_cta}`);
-  if (data.why_it_works) lines.push(`Why it works: ${data.why_it_works}`);
 
   const posts = data.static_posts || [];
   if (posts.length) {
@@ -1742,26 +1780,10 @@ function formatCampaignForEmail(data) {
         .map((t) => `#${String(t).replace(/^#/, "")}`)
         .join(" ");
       lines.push("", `${i + 1}. ${p.title || `Post ${p.id || i + 1}`}`);
-      if (p.caption) lines.push(`Caption: ${p.caption}`);
+      if (p.caption) lines.push(p.caption);
       if (p.cta) lines.push(`CTA: ${p.cta}`);
-      if (tags) lines.push(`Hashtags: ${tags}`);
+      if (tags) lines.push(tags);
       if (p.image_url) lines.push(`Image: ${p.image_url}`);
-    });
-  }
-
-  const reels = data.reels || [];
-  if (reels.length) {
-    lines.push("", "REELS");
-    reels.forEach((r, i) => {
-      const overlays = (r.on_screen_text || []).join(" · ");
-      lines.push(
-        "",
-        `${i + 1}. ${r.title || `Reel ${r.id || i + 1}`} (${Number(r.duration_sec || 30)}s)`,
-      );
-      if (r.hook) lines.push(`Hook: ${r.hook}`);
-      if (r.script) lines.push(`Script: ${r.script}`);
-      if (overlays) lines.push(`On-screen: ${overlays}`);
-      if (r.cta) lines.push(`CTA: ${r.cta}`);
     });
   }
 

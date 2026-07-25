@@ -202,6 +202,10 @@ class SendEmailRequest(BaseModel):
         max_length=600_000,
         description="HTTPS logo URL or data:image/... base64 for the email header",
     )
+    marketing_campaign: Optional["CampaignResponse"] = Field(
+        default=None,
+        description="Submitted marketing campaign to append as a suggestion with post images",
+    )
     include_open_tracking: bool = Field(
         default=False,
         description="Embed open-tracking pixel (can hurt deliverability)",
@@ -229,6 +233,10 @@ class PreviewEmailRequest(BaseModel):
     )
     template_id: str = Field(default="", max_length=40)
     logo_url: str = Field(default="", max_length=600_000)
+    marketing_campaign: Optional["CampaignResponse"] = Field(
+        default=None,
+        description="Submitted marketing campaign to append as a suggestion with post images",
+    )
 
 
 class RenderEmailRequest(BaseModel):
@@ -244,6 +252,10 @@ class RenderEmailRequest(BaseModel):
     body: str = ""
     template_id: str = Field(default="", max_length=40)
     logo_url: str = Field(default="", max_length=600_000)
+    marketing_campaign: Optional["CampaignResponse"] = Field(
+        default=None,
+        description="Submitted marketing campaign to append as a suggestion with post images",
+    )
 
 
 class PipelineStatusRequest(BaseModel):
@@ -315,3 +327,8 @@ class SearchStatus(BaseModel):
     message: str = ""
     result: Optional[SearchResponse] = None
     error: Optional[str] = None
+
+
+SendEmailRequest.model_rebuild()
+PreviewEmailRequest.model_rebuild()
+RenderEmailRequest.model_rebuild()
