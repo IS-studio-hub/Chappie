@@ -29,6 +29,19 @@ async def connect_db() -> None:
     await db.pending_signups.create_index("expires_at", expireAfterSeconds=0)
     await db.outreach_deals.create_index([("user_id", 1), ("updated_at", -1)])
     await db.outreach_deals.create_index([("user_id", 1), ("place_id", 1)])
+    # Unique open_token must be sparse and must not index null (Mongo unique + null = one row).
+    try:
+        await db.outreach_deals.drop_index("open_token_1")
+    except Exception:
+        pass
+    # Clear legacy null tokens so unique sparse rebuild can succeed
+    try:
+        await db.outreach_deals.update_many(
+            {"open_token": None},
+            {"$unset": {"open_token": ""}},
+        )
+    except Exception:
+        pass
     await db.outreach_deals.create_index("open_token", unique=True, sparse=True)
     # Brand books are per-user so accounts never share generated brand systems
     try:

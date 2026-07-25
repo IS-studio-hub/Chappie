@@ -115,14 +115,16 @@ async def record_outreach_send(
         query["recipients.0"] = recipients[0] if recipients else ""
 
     existing = await db.outreach_deals.find_one(query)
-    open_token = secrets.token_urlsafe(24) if include_tracking_pixel else ""
+    # Always mint a unique token so the unique open_token index never sees null.
+    # Pixel is only injected when include_tracking_pixel is True.
+    open_token = secrets.token_urlsafe(24)
     dims = deal_dimensions_from_business(business)
 
     history_entry = {"status": "sent", "at": now, "note": "Email sent"}
 
     tracking_fields = {
-        "open_tracking_enabled": include_tracking_pixel,
-        "open_token": open_token or None,
+        "open_tracking_enabled": bool(include_tracking_pixel),
+        "open_token": open_token,
     }
 
     if existing:
