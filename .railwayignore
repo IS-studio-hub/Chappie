@@ -1,0 +1,12 @@
+venv/
+.git/
+.pytest_cache/
+__pycache__/
+*.pyc
+.env
+.env.local
+assets/
+tutorials/
+*.egg-info/
+.DS_Store
+.railway/
