@@ -1177,6 +1177,8 @@ button.btn[hidden] {
   flex-direction: column;
   gap: 0.45rem;
   margin: 1rem;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .card-detail {
@@ -1186,6 +1188,20 @@ button.btn[hidden] {
   font-size: 0.88rem;
   color: var(--text-secondary);
   line-height: 1.35;
+  min-width: 0;
+}
+
+.card-detail-email {
+  align-items: center;
+}
+
+.card-detail-email a {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--accent);
 }
 
 .card-detail-muted {

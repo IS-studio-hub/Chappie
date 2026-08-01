@@ -124,8 +124,11 @@ EMAIL_RESULT_MIN_RATIO = 0.60
 
 
 def _html(name: str) -> HTMLResponse:
+    content = (STATIC_DIR / name).read_text(encoding="utf-8")
+    base = (settings.app_base_url or "").rstrip("/") or "https://chappie-production.up.railway.app"
+    content = content.replace("{{APP_BASE_URL}}", base)
     return HTMLResponse(
-        content=(STATIC_DIR / name).read_text(encoding="utf-8"),
+        content=content,
         headers={
             "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
             "Pragma": "no-cache",

@@ -2730,6 +2730,23 @@ function getBusinessEmails(b) {
   return list;
 }
 
+/** Short display label for long emails on cards; full address stays in href/title. */
+function shortenEmailLabel(email, maxLen = 32) {
+  const value = String(email || "").trim();
+  if (value.length <= maxLen) return value;
+  return `${value.slice(0, Math.max(1, maxLen - 3))}...`;
+}
+
+function renderCardEmailRows(emails) {
+  if (!emails.length) {
+    return `<div class="card-detail card-detail-muted"><span class="d-icon">✉️</span>no email</div>`;
+  }
+  return emails.map((e) => {
+    const label = shortenEmailLabel(e);
+    return `<div class="card-detail card-detail-email"><span class="d-icon">✉️</span><a href="mailto:${esc(e)}" title="${esc(e)}" onclick="event.stopPropagation()">${esc(label)}</a></div>`;
+  }).join("");
+}
+
 function noWebsiteBadge(b) {
   // Only highlight businesses that do not have a website
   if (b.has_website || b.website_url || b.no_website_status === "has_website") {
@@ -2829,7 +2846,7 @@ function renderCard(b, index) {
         ${b.distance_km != null ? `<div class="card-detail"><span class="d-icon">📏</span>${Number(b.distance_km).toFixed(1)} km from center</div>` : ""}
         ${b.address ? `<div class="card-detail"><span class="d-icon">📍</span>${esc(b.address)}</div>` : ""}
         ${emails.length
-          ? emails.map((e) => `<div class="card-detail"><span class="d-icon">✉️</span><a href="mailto:${esc(e)}" style="color:var(--accent)" onclick="event.stopPropagation()">${esc(e)}</a></div>`).join("")
+          ? renderCardEmailRows(emails)
           : `<div class="card-detail card-detail-muted"><span class="d-icon">✉️</span>no email</div>`}
         ${b.phone ? `<div class="card-detail"><span class="d-icon">📞</span>${esc(b.phone)}</div>` : ""}
       </div>
