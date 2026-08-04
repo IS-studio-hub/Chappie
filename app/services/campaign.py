@@ -25,6 +25,54 @@ from app.services.brand_book import (
 OPENAI_API_BASE = "https://api.openai.com/v1"
 CampaignGoal = Literal["awareness", "leads", "engagement"]
 
+_QUOTA_HINT = (
+    "Your OpenAI account has no API credits left. "
+    "Open Integrations, confirm the connected OpenAI key, then add credits at "
+    "https://platform.openai.com/settings/organization/billing and try again."
+)
+
+
+def _openai_error_message(status_code: int, body: str, *, action: str) -> str:
+    """Turn OpenAI HTTP errors into short, actionable messages."""
+    text = (body or "").strip()
+    code = ""
+    message = ""
+    try:
+        payload = json.loads(text)
+        err = payload.get("error") if isinstance(payload, dict) else None
+        if isinstance(err, dict):
+            code = str(err.get("code") or "")
+            message = str(err.get("message") or "")
+            err_type = str(err.get("type") or "")
+        else:
+            err_type = ""
+    except json.JSONDecodeError:
+        err_type = ""
+
+    quota = (
+        status_code == 429
+        and (
+            code in {"insufficient_quota", "credit_balance_exhausted", "billing_not_active"}
+            or "credit" in (message + err_type + text).lower()
+            or "quota" in (message + err_type + text).lower()
+            or "billing" in (message + err_type + text).lower()
+        )
+    )
+    if quota:
+        return _QUOTA_HINT
+    if status_code == 401:
+        return (
+            "OpenAI rejected the connected API key. "
+            "Reconnect a valid key in Integrations and try again."
+        )
+    if status_code == 429:
+        return (
+            "OpenAI rate limit reached while creating the campaign. "
+            "Wait a moment and try again."
+        )
+    detail = (message or text)[:220] or "unknown error"
+    return f"{action} failed ({status_code}): {detail}"
+
 
 def _parse_json(raw: str) -> dict:
     try:
@@ -252,8 +300,13 @@ Requirements:
             json=payload,
         )
     if response.status_code != 200:
-        detail = response.text[:300]
-        raise ValueError(f"OpenAI campaign concept failed ({response.status_code}): {detail}")
+        raise ValueError(
+            _openai_error_message(
+                response.status_code,
+                response.text,
+                action="OpenAI campaign concept",
+            )
+        )
     raw = response.json()["choices"][0]["message"]["content"]
     data = _parse_json(raw or "")
     if not data:
@@ -326,8 +379,11 @@ async def _generate_post_image_with_model(prompt: str, api_key: str, model: str)
         )
     if response.status_code != 200:
         raise ValueError(
-            f"Image generation failed ({response.status_code}) [{model}]: "
-            f"{response.text[:240]}"
+            _openai_error_message(
+                response.status_code,
+                response.text,
+                action=f"Image generation [{model}]",
+            )
         )
     return _extract_image_src(response.json())
 
