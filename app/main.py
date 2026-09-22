@@ -127,6 +127,17 @@ def _html(name: str) -> HTMLResponse:
     content = (STATIC_DIR / name).read_text(encoding="utf-8")
     base = (settings.app_base_url or "").rstrip("/") or "https://chappie-production.up.railway.app"
     content = content.replace("{{APP_BASE_URL}}", base)
+    snippet = (
+        '<script defer src="https://lytico-production.up.railway.app/lytico.js" '
+        'data-site="lt_chappie_is12"></script>'
+    )
+    if "lytico.js" not in content:
+        lower = content.lower()
+        idx = lower.find("</head>")
+        if idx != -1:
+            content = content[:idx] + snippet + "\n" + content[idx:]
+        else:
+            content = snippet + content
     return HTMLResponse(
         content=content,
         headers={
